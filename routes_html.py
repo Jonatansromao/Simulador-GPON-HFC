@@ -579,23 +579,24 @@ def sair_turma(turma_id):
         return jsonify({"status": "unauthorized"}), 403
 
     aluno_id = session["usuario"]["id"]
+    turma = Turma.query.get_or_404(turma_id)
 
     matricula = Matricula.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).first()
     if matricula:
-        # O aluno sai apenas da tela/sala, mas continua matriculado.
-        # Isso preserva o histórico e permite retornar depois, mesmo com a turma encerrada.
-        matricula.pronto = False
-        db.session.commit()
+        # O aluno sai apenas da tela/sala, mas continua vinculado à turma.
+        # Isso preserva todo o histórico anterior e permite voltar depois.
+        if turma.status != "Encerrado":
+            matricula.pronto = False
+            db.session.commit()
 
-        turma = Turma.query.get_or_404(turma_id)
         payload = emitir_atualizacao_turma(turma)
         return jsonify({
             "status": "ok",
-            "mensagem": "Você saiu da sala, mas continua matriculado na turma.",
+            "mensagem": "Você saiu da sala, mas permaneceu vinculado à turma e ao histórico.",
             **payload,
         })
 
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", **build_turma_realtime_payload(turma)})
 
 
 # 🔹 Histórico detalhado do aluno
@@ -1198,7 +1199,7 @@ def submit_answers(turma_id):
         turma.status = "Encerrado"
         db.session.commit()
 
-    # 🔹 Notifica em tempo real com payload completo
+    # 🔹 Atualiza sala/painel em tempo real com status e contadores
     emitir_atualizacao_turma(turma)
 
     # 🔹 Renderiza resultado final do quiz
@@ -1215,15 +1216,24 @@ def voltar_painel():
 
     aluno_id = session["usuario"]["id"]
 
-    # Verifica se o aluno está em alguma turma
+    # Primeiro tenta a matrícula mais recente.
     matricula = Matricula.query.filter_by(aluno_id=aluno_id).order_by(Matricula.id.desc()).first()
-
     if matricula and matricula.turma:
-        # 🔹 Se está em turma, volta sempre para sala de espera (mesmo encerrada)
         return redirect(url_for("html_bp.sala_espera", turma_id=matricula.turma_id))
-    else:
-        # 🔹 Se não está em turma, volta para painel do aluno
-        return redirect(url_for("html_bp.aluno_dashboard"))
+
+    # Fallback: se a matrícula antiga foi removida, usa a última turma com histórico salvo.
+    ultima_resposta_turma = (
+        Resposta.query.filter(
+            Resposta.aluno_id == aluno_id,
+            Resposta.turma_id.isnot(None),
+        )
+        .order_by(Resposta.data_envio.desc())
+        .first()
+    )
+    if ultima_resposta_turma and ultima_resposta_turma.turma_id:
+        return redirect(url_for("html_bp.sala_espera", turma_id=ultima_resposta_turma.turma_id))
+
+    return redirect(url_for("html_bp.aluno_dashboard"))
 
 
 # -----------------------------

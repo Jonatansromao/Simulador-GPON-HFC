@@ -33,9 +33,9 @@
     ✅ Estou Pronto
   </button>
 
-  <!-- Botão para sair da sala -->
+  <!-- Botão para sair da turma -->
   <button @click="sairTurma" class="btn btn-danger mt-2">
-    🚪 Sair da Sala
+    🚪 Sair da Turma
   </button>
 
   <!-- Botão para ver histórico da turma -->
@@ -52,7 +52,7 @@
     O professor iniciou! Você será redirecionado...
   </div>
   <div class="alert alert-danger mt-4" v-if="status === 'encerrado'">
-    O professor encerrou a turma. Você pode permanecer nesta sala e consultar seu histórico normalmente.
+    O professor encerrou a turma. Obrigado pela participação!
   </div>
 </div>
 

@@ -24,19 +24,17 @@
                     {{ turma.nome }} - {{ turma.disciplina }} ({{ turma.data.strftime("%d/%m/%Y") }})
 
                     {% set matricula = turma.matriculas|selectattr("aluno_id","equalto",session["usuario"]["id"])|first %}
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        {% if turma.status == "Encerrado" %}
-                            <span class="badge bg-secondary">Turma Encerrada</span>
-                        {% endif %}
-                        {% if matricula %}
-                            <a href="{{ url_for('html_bp.sala_espera', turma_id=turma.id) }}" class="btn btn-sm btn-success me-1">
-                                👉 Entrar na Sala de Espera
-                            </a>
-                        {% endif %}
-                        <a href="{{ url_for('html_bp.aluno_historico_turma', turma_id=turma.id) }}" class="btn btn-sm btn-info">
-                            📜 Histórico da Turma
+                    {% if turma.status == "Encerrado" %}
+                        <span class="badge bg-secondary me-1">Turma Encerrada</span>
+                    {% endif %}
+                    {% if matricula %}
+                        <a href="{{ url_for('html_bp.sala_espera', turma_id=turma.id) }}" class="btn btn-sm btn-success me-1">
+                            👉 Entrar na Sala de Espera
                         </a>
-                    </div>
+                    {% endif %}
+                    <a href="{{ url_for('html_bp.aluno_historico_turma', turma_id=turma.id) }}" class="btn btn-sm btn-info">
+                        📜 Histórico da Turma
+                    </a>
                 </li>
             {% endfor %}
         </ul>
