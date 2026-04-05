@@ -38,6 +38,7 @@ class Professor(UserMixin, db.Model):
     nome = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     senha_hash = db.Column(db.Text, nullable=False)
+    invite_code = db.Column(db.String(30), unique=True, nullable=True, index=True)
 
     # 🔹 Campos para assinatura premium
     is_premium = db.Column(db.Boolean, default=False)
@@ -45,6 +46,7 @@ class Professor(UserMixin, db.Model):
     is_admin = db.Column(db.Boolean, default=False)  # Para o criador
 
     turmas = db.relationship("Turma", back_populates="professor", lazy=True)
+    alunos = db.relationship("Aluno", back_populates="professor", lazy=True)
 
     def set_password(self, senha):
         self.senha_hash = generate_password_hash(senha)
@@ -117,7 +119,13 @@ class Aluno(db.Model):
     cpf = db.Column(db.String(20), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     senha_hash = db.Column(db.String(255), nullable=False)
+    empresa = db.Column(db.String(120), nullable=True)
+    professor_id = db.Column(db.Integer, db.ForeignKey("professores.id"), nullable=True)
+    approval_status = db.Column(db.String(20), nullable=False, default="approved")
+    approved_at = db.Column(db.DateTime, nullable=True)
+    invite_code_used = db.Column(db.String(30), nullable=True)
 
+    professor = db.relationship("Professor", back_populates="alunos", lazy=True)
     matriculas = db.relationship("Matricula", back_populates="aluno", cascade="all, delete-orphan")
     respostas = db.relationship("Resposta", back_populates="aluno", lazy=True, cascade="all, delete-orphan")
 
@@ -126,6 +134,9 @@ class Aluno(db.Model):
 
     def check_password(self, senha):
         return check_password_hash(self.senha_hash, senha)
+
+    def is_approved(self):
+        return (self.approval_status or "approved").lower() == "approved"
 
     def __repr__(self):
         return f"<Aluno {self.nome} ({self.email})>"

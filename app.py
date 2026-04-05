@@ -2,6 +2,7 @@ import os
 import csv
 from flask import Flask
 from flask_migrate import Migrate
+from sqlalchemy import inspect, text
 from dotenv import load_dotenv
 
 # Carregar variáveis de ambiente do arquivo .env antes dos imports que dependem delas
@@ -32,6 +33,42 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 socketio.init_app(app)
+
+
+def ensure_schema_updates():
+    inspector = inspect(db.engine)
+    tables = set(inspector.get_table_names())
+
+    if "professores" in tables:
+        professor_columns = {col["name"] for col in inspector.get_columns("professores")}
+        if "invite_code" not in professor_columns:
+            db.session.execute(text("ALTER TABLE professores ADD COLUMN invite_code VARCHAR(30)"))
+            db.session.commit()
+        try:
+            db.session.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_professores_invite_code ON professores (invite_code)"))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    if "alunos" in tables:
+        aluno_columns = {col["name"] for col in inspector.get_columns("alunos")}
+        additions = {
+            "empresa": "ALTER TABLE alunos ADD COLUMN empresa VARCHAR(120)",
+            "professor_id": "ALTER TABLE alunos ADD COLUMN professor_id INTEGER",
+            "approval_status": "ALTER TABLE alunos ADD COLUMN approval_status VARCHAR(20) DEFAULT 'approved'",
+            "approved_at": "ALTER TABLE alunos ADD COLUMN approved_at DATETIME",
+            "invite_code_used": "ALTER TABLE alunos ADD COLUMN invite_code_used VARCHAR(30)",
+        }
+
+        for column_name, statement in additions.items():
+            if column_name not in aluno_columns:
+                db.session.execute(text(statement))
+                db.session.commit()
+
+        db.session.execute(
+            text("UPDATE alunos SET approval_status = 'approved' WHERE approval_status IS NULL OR approval_status = ''")
+        )
+        db.session.commit()
 
 
 def ensure_question_banks_loaded():
@@ -77,6 +114,7 @@ def ensure_question_banks_loaded():
 
 with app.app_context():
     db.create_all()
+    ensure_schema_updates()
     ensure_question_banks_loaded()
 
 app.register_blueprint(html_bp)

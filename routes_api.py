@@ -26,6 +26,20 @@ def api_login_required_aluno(f):
             # redirect to aluno login (HTML flow), keep next to return later
             flash("Faça login para acessar a área do aluno.", "warning")
             return redirect(url_for("html_bp.login_aluno", next=request.path))
+
+        aluno = Aluno.query.get(session["usuario"]["id"])
+        if aluno and not aluno.is_approved():
+            status = (aluno.approval_status or "pending").lower()
+            message = (
+                "Seu cadastro está pendente de aprovação do professor."
+                if status == "pending"
+                else "Seu cadastro foi recusado pelo professor responsável."
+            )
+            if prefers_json():
+                return jsonify({"erro": message, "status": status}), 403
+            flash(message, "warning" if status == "pending" else "danger")
+            return redirect(url_for("html_bp.aluno_dashboard"))
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -190,7 +204,13 @@ def api_login_aluno():
             "email": aluno.email
         }
         redirect_to = next_url or url_for("html_bp.aluno_dashboard")
-        return jsonify({"mensagem": "Login realizado com sucesso", "tipo": "aluno", "redirect": redirect_to}), 200
+        approval_status = (aluno.approval_status or "approved").lower()
+        return jsonify({
+            "mensagem": "Login realizado com sucesso",
+            "tipo": "aluno",
+            "redirect": redirect_to,
+            "approval_status": approval_status,
+        }), 200
 
     return jsonify({"erro": "Credenciais inválidas"}), 401
 

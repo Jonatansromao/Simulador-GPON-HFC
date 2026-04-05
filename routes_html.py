@@ -241,11 +241,40 @@ def is_admin_email(email: str) -> bool:
     return bool(email and email.strip().lower() in ADMIN_EMAILS)
 
 
+def generate_invite_code() -> str:
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    while True:
+        code = "ETN-" + "".join(secrets.choice(alphabet) for _ in range(6))
+        if not Professor.query.filter_by(invite_code=code).first():
+            return code
+
+
+def ensure_professor_invite_code(professor: Professor | None) -> str | None:
+    if not professor:
+        return None
+    if not professor.invite_code:
+        professor.invite_code = generate_invite_code()
+        db.session.commit()
+    return professor.invite_code
+
+
+def get_aluno_status_message(aluno: Aluno | None) -> tuple[str | None, str]:
+    if not aluno:
+        return None, "secondary"
+
+    status = (aluno.approval_status or "approved").lower()
+    if status == "pending":
+        return "Seu cadastro está pendente de aprovação do professor. Assim que ele aprovar, o acesso completo será liberado.", "warning"
+    if status == "rejected":
+        return "Seu cadastro foi recusado pelo professor responsável. Se necessário, solicite um novo código de convite.", "danger"
+    return None, "success"
+
+
 @html_bp.route("/professor/register", methods=["GET", "POST"])
 def professor_register():
     if request.method == "POST":
-        nome = request.form.get("username")  # campo do formulário
-        email = request.form.get("email")  # se você quiser pedir email também
+        nome = (request.form.get("username") or "").strip()  # campo do formulário
+        email = (request.form.get("email") or "").strip().lower()  # se você quiser pedir email também
         senha = request.form.get("password")
 
         # Verifica se já existe professor com esse email
@@ -254,7 +283,7 @@ def professor_register():
             return render_template("professor_register.html", message="Email já cadastrado!")
 
         # Cria novo professor sem acesso premium
-        novo_professor = Professor(nome=nome, email=email)
+        novo_professor = Professor(nome=nome, email=email, invite_code=generate_invite_code())
         novo_professor.set_password(senha)  # usa o método para gerar hash
         novo_professor.is_admin = is_admin_email(email)
         novo_professor.is_premium = novo_professor.is_admin
@@ -271,22 +300,41 @@ def professor_register():
 @html_bp.route("/aluno/register", methods=["GET", "POST"])
 def aluno_register():
     if request.method == "POST":
-        nome = request.form.get("nome")
-        cpf = request.form.get("cpf")
-        email = request.form.get("email")
+        nome = (request.form.get("nome") or "").strip()
+        cpf = (request.form.get("cpf") or "").strip()
+        empresa = (request.form.get("empresa") or "").strip()
+        codigo_convite = (request.form.get("codigo_convite") or "").strip().upper()
+        email = (request.form.get("email") or "").strip().lower()
         senha = request.form.get("senha")
+
+        if not empresa or not codigo_convite:
+            flash("Informe a empresa e um código de convite válido para continuar.", "warning")
+            return redirect(url_for("html_bp.aluno_register"))
+
+        professor = Professor.query.filter_by(invite_code=codigo_convite).first()
+        if not professor:
+            flash("Código de convite inválido. Verifique com seu professor e tente novamente.", "danger")
+            return redirect(url_for("html_bp.aluno_register"))
 
         # Verifica se já existe aluno com mesmo email ou CPF
         if Aluno.query.filter((Aluno.email == email) | (Aluno.cpf == cpf)).first():
             flash("Já existe um aluno com este CPF ou e-mail.", "danger")
             return redirect(url_for("html_bp.aluno_register"))
 
-        aluno = Aluno(nome=nome, cpf=cpf, email=email)
+        aluno = Aluno(
+            nome=nome,
+            cpf=cpf,
+            email=email,
+            empresa=empresa,
+            professor_id=professor.id,
+            approval_status="pending",
+            invite_code_used=codigo_convite,
+        )
         aluno.set_password(senha)
         db.session.add(aluno)
         db.session.commit()
 
-        flash("Cadastro realizado com sucesso! Faça login.", "success")
+        flash("Cadastro realizado com sucesso! Seu acesso ficará pendente até a aprovação do professor.", "success")
         return redirect(url_for("html_bp.login_aluno"))
 
     return render_template("aluno_register.html")
@@ -435,9 +483,21 @@ def professor_dashboard():
         turma.alunos = turma.matriculas
 
     professor = Professor.query.get(professor_id)
+    invite_code = ensure_professor_invite_code(professor)
     subscription_status = "Free"
     expires_at = None
+    solicitacoes_pendentes = []
+    total_alunos_aprovados = 0
     if professor:
+        solicitacoes_pendentes = Aluno.query.filter_by(
+            professor_id=professor.id,
+            approval_status="pending",
+        ).order_by(Aluno.nome.asc()).all()
+        total_alunos_aprovados = Aluno.query.filter(
+            Aluno.professor_id == professor.id,
+            Aluno.approval_status.in_(["approved", None]),
+        ).count()
+
         if professor.is_admin:
             subscription_status = "VIP Vitalício"
             expires_at = "Vitalício"
@@ -451,6 +511,9 @@ def professor_dashboard():
         turmas=turmas,
         subscription_status=subscription_status,
         expires_at=expires_at,
+        invite_code=invite_code,
+        solicitacoes_pendentes=solicitacoes_pendentes,
+        total_alunos_aprovados=total_alunos_aprovados,
     )
 
 
@@ -461,9 +524,14 @@ def aluno_dashboard():
         return redirect(url_for("html_bp.login_aluno"))
 
     aluno = Aluno.query.get(session["usuario"]["id"])
+    approval_message, approval_category = get_aluno_status_message(aluno)
 
     # ✅ Entrar em turma
     if request.method == "POST":
+        if not aluno.is_approved():
+            flash(approval_message or "Seu acesso ainda não foi aprovado pelo professor.", approval_category)
+            return redirect(url_for("html_bp.aluno_dashboard"))
+
         codigo_turma = request.form.get("turma")
         turma = Turma.query.filter_by(nome=codigo_turma).first()
         if turma:
@@ -478,35 +546,48 @@ def aluno_dashboard():
             flash("Turma não encontrada.", "danger")
 
     # ✅ Turmas do aluno
-    turmas = [m.turma for m in aluno.matriculas]
+    turmas = [m.turma for m in aluno.matriculas] if aluno.is_approved() else []
 
     # ✅ Histórico detalhado
-    respostas = Resposta.query.filter_by(aluno_id=aluno.id).order_by(Resposta.data_envio.desc()).all()
     historico = []
-    for r in respostas:
-        questao = Questao.query.get(r.questao_id) if hasattr(r, "questao_id") else None
-        historico.append(
-            {
-                "questao_id": r.questao_id if hasattr(r, "questao_id") else None,
-                "questao": questao.texto if questao else r.questao,
-                "resposta": r.resposta,
-                "correta": r.correta,
-                "questao_correta": questao.correta if questao else None,
-                "data_envio": r.data_envio,
-            }
-        )
+    if aluno.is_approved():
+        respostas = Resposta.query.filter_by(aluno_id=aluno.id).order_by(Resposta.data_envio.desc()).all()
+        for r in respostas:
+            questao = Questao.query.get(r.questao_id) if hasattr(r, "questao_id") else None
+            historico.append(
+                {
+                    "questao_id": r.questao_id if hasattr(r, "questao_id") else None,
+                    "questao": questao.texto if questao else r.questao,
+                    "resposta": r.resposta,
+                    "correta": r.correta,
+                    "questao_correta": questao.correta if questao else None,
+                    "data_envio": r.data_envio,
+                }
+            )
 
-    return render_template("aluno_dashboard.html", nome=aluno.nome, turmas=turmas, historico=historico)
+    return render_template(
+        "aluno_dashboard.html",
+        nome=aluno.nome,
+        turmas=turmas,
+        historico=historico,
+        approval_status=(aluno.approval_status or "approved").lower(),
+        approval_message=approval_message,
+        professor_nome=aluno.professor.nome if aluno.professor else None,
+        empresa=aluno.empresa,
+        invite_code_used=aluno.invite_code_used,
+    )
 
 
 # 🔹 Simulado Livre HFC
 @html_bp.route("/aluno/simulado/hfc")
+@api_login_required_aluno
 def simulado_hfc():
     return render_template("quiz.html", titulo="Simulado Livre - HFC", banco="HFC", questoes=[])
 
 
 # 🔹 Simulado Livre GPON
 @html_bp.route("/aluno/simulado/gpon")
+@api_login_required_aluno
 def simulado_gpon():
     return render_template("quiz.html", titulo="Simulado Livre - GPON", banco="GPON", questoes=[])
 
@@ -603,6 +684,7 @@ def sair_turma(turma_id):
 
 # 🔹 Histórico detalhado do aluno
 @html_bp.route("/aluno/historico")
+@api_login_required_aluno
 def aluno_historico():
     if "usuario" not in session or session["usuario"]["tipo"] != "aluno":
         return redirect(url_for("html_bp.login_aluno"))
@@ -614,6 +696,7 @@ def aluno_historico():
 
 # 🔹 Histórico detalhado da turma para o aluno
 @html_bp.route("/aluno/historico_turma/<int:turma_id>")
+@api_login_required_aluno
 def aluno_historico_turma(turma_id):
     if "usuario" not in session or session["usuario"]["tipo"] != "aluno":
         return redirect(url_for("html_bp.login_aluno"))
@@ -769,7 +852,11 @@ def login_aluno():
                 "cpf": aluno.cpf,
                 "email": aluno.email,
             }
-            flash("Login realizado com sucesso!", "success")
+            approval_message, approval_category = get_aluno_status_message(aluno)
+            if approval_message:
+                flash(approval_message, approval_category)
+            else:
+                flash("Login realizado com sucesso!", "success")
             return redirect(url_for("html_bp.aluno_dashboard"))
         else:
             flash("Credenciais inválidas", "danger")
@@ -791,6 +878,8 @@ def login_professor():
                 professor.is_admin = True
                 professor.is_premium = True
                 db.session.commit()
+
+            ensure_professor_invite_code(professor)
 
             session["usuario"] = {
                 "tipo": "professor",
@@ -822,6 +911,50 @@ def professor_logout():
     return redirect(url_for("html_bp.home"))
 
 
+@html_bp.route("/professor/convite/regerar", methods=["POST"])
+@api_login_required_professor
+def professor_regerar_convite():
+    professor = Professor.query.get(session["usuario"]["id"])
+    if not professor:
+        flash("Professor não encontrado.", "danger")
+        return redirect(url_for("html_bp.login_professor"))
+
+    professor.invite_code = generate_invite_code()
+    db.session.commit()
+    flash("Novo código de convite gerado com sucesso.", "success")
+    return redirect(url_for("html_bp.professor_dashboard"))
+
+
+@html_bp.route("/professor/alunos/<int:aluno_id>/aprovar", methods=["POST"])
+@api_login_required_professor
+def professor_aprovar_aluno(aluno_id):
+    aluno = Aluno.query.filter_by(id=aluno_id, professor_id=session["usuario"]["id"]).first()
+    if not aluno:
+        flash("Solicitação de aluno não encontrada.", "danger")
+        return redirect(url_for("html_bp.professor_dashboard"))
+
+    aluno.approval_status = "approved"
+    aluno.approved_at = datetime.utcnow()
+    db.session.commit()
+    flash(f"Aluno {aluno.nome} aprovado com sucesso.", "success")
+    return redirect(url_for("html_bp.professor_dashboard"))
+
+
+@html_bp.route("/professor/alunos/<int:aluno_id>/recusar", methods=["POST"])
+@api_login_required_professor
+def professor_recusar_aluno(aluno_id):
+    aluno = Aluno.query.filter_by(id=aluno_id, professor_id=session["usuario"]["id"]).first()
+    if not aluno:
+        flash("Solicitação de aluno não encontrada.", "danger")
+        return redirect(url_for("html_bp.professor_dashboard"))
+
+    aluno.approval_status = "rejected"
+    aluno.approved_at = None
+    db.session.commit()
+    flash(f"Aluno {aluno.nome} recusado.", "info")
+    return redirect(url_for("html_bp.professor_dashboard"))
+
+
 @html_bp.route("/logout")
 def logout_page():
     """Página de logout"""
@@ -844,6 +977,7 @@ def iniciar_quiz(turma_id):
 
 
 @html_bp.route("/start_quiz")
+@api_login_required_aluno
 def start_quiz():
     sheet = request.args.get("sheet")
     turma_id = request.args.get("turma")

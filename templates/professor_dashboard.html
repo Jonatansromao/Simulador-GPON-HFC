@@ -26,6 +26,63 @@
     <a href="{{ url_for('html_bp.professor_premium') }}" class="btn btn-sm btn-outline-primary float-end">Assinar Premium</a>
   </div>
 
+  <div class="row mb-3">
+    <div class="col-lg-5 mb-3 mb-lg-0">
+      <div class="card shadow h-100 p-3 border-primary">
+        <h5 class="mb-2">🔐 Código de convite</h5>
+        <p class="text-muted mb-2">Compartilhe este código com seus alunos para que eles façam o cadastro.</p>
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+          <span class="badge bg-primary fs-6 px-3 py-2">{{ invite_code }}</span>
+          <form method="POST" action="{{ url_for('html_bp.professor_regerar_convite') }}">
+            <button type="submit" class="btn btn-outline-primary btn-sm">Regerar código</button>
+          </form>
+        </div>
+        <small class="text-muted mt-2">Alunos aprovados: <strong>{{ total_alunos_aprovados }}</strong></small>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card shadow h-100 p-3">
+        <h5 class="mb-3">✅ Solicitações pendentes</h5>
+        {% if solicitacoes_pendentes %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Aluno</th>
+                  <th>Empresa</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for aluno in solicitacoes_pendentes %}
+                  <tr>
+                    <td>
+                      <strong>{{ aluno.nome }}</strong><br>
+                      <small class="text-muted">{{ aluno.email }}</small>
+                    </td>
+                    <td>{{ aluno.empresa or '—' }}</td>
+                    <td>
+                      <div class="d-flex gap-1">
+                        <form method="POST" action="{{ url_for('html_bp.professor_aprovar_aluno', aluno_id=aluno.id) }}">
+                          <button type="submit" class="btn btn-success btn-sm">Aprovar</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('html_bp.professor_recusar_aluno', aluno_id=aluno.id) }}">
+                          <button type="submit" class="btn btn-outline-danger btn-sm">Recusar</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Nenhum aluno aguardando aprovação no momento.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
   <!-- Cadastro de Turma -->
   <div class="card shadow p-4">
     <h4>Cadastro de Turma</h4>
