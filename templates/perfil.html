@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block titulo %}Meu Perfil{% endblock %}
+
+{% block conteudo %}
+<div class="container mt-4" style="max-width: 700px;">
+  <div class="card p-4 shadow">
+    <h2 class="mb-3">Meu Perfil</h2>
+    <form method="POST" action="{{ url_for('html_bp.perfil') }}">
+      <div class="mb-3">
+        <label class="form-label">Nome</label>
+        <input type="text" name="nome" class="form-control" value="{{ user.nome }}" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">E-mail</label>
+        <input type="email" name="email" class="form-control" value="{{ user.email }}" readonly>
+      </div>
+      {% if tipo == 'aluno' %}
+      <div class="mb-3">
+        <label class="form-label">CPF</label>
+        <input type="text" class="form-control" value="{{ user.cpf }}" readonly>
+      </div>
+      {% endif %}
+      <hr>
+      <h5>Alterar senha</h5>
+      <div class="mb-3">
+        <label class="form-label">Senha atual</label>
+        <input type="password" name="senha_atual" class="form-control" placeholder="Deixe em branco para não alterar">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Nova senha</label>
+        <input type="password" name="nova_senha" class="form-control" placeholder="Deixe em branco para não alterar">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Confirmar nova senha</label>
+        <input type="password" name="confirma_senha" class="form-control" placeholder="Reescreva a nova senha">
+      </div>
+      <button type="submit" class="btn btn-primary w-100">Salvar alterações</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

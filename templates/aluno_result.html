@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resultados da Turma</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Vue 3, Axios e Chart.js via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        body { background-color: #f5f5f5; }
+        .container {
+            margin-top: 30px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            max-width: 100%; /* 🔹 ocupa toda a largura no celular */
+        }
+        h1 {
+            text-align: center;
+            color: #002f66;
+            font-size: 1.6rem;
+            margin-bottom: 20px;
+        }
+        table { font-size: 0.9rem; }
+        .btn-back {
+            display: block;
+            margin: 20px auto 0;
+            padding: 10px;
+            background-color: #002f66;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            text-align: center;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .btn-back:hover { background-color: #004080; }
+        .correct { color: #28a745; font-weight: bold; }
+        .incorrect { color: #dc3545; font-weight: bold; }
+        .question-box {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background-color: #fafafa;
+        }
+    </style>
+</head>
+<body>
+<div id="app" class="container">
+    <h1>Resultados da Turma [[ turma_id ]]</h1>
+
+    <div v-if="alunos.length > 0">
+        <!-- Estatísticas rápidas -->
+        <div class="alert alert-info">
+            <strong>Média da turma:</strong> [[ mediaTurma.toFixed(2) ]] <br>
+            <strong>Melhor nota:</strong> [[ melhorNota ]] <br>
+            <strong>Pior nota:</strong> [[ piorNota ]]
+        </div>
+
+        <!-- Gráficos -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <canvas id="scoreChart"></canvas>
+            </div>
+            <div class="col-md-6">
+                <canvas id="distChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Tabela de resultados com acordeão -->
+        <table class="table table-striped table-bordered">
+            <thead class="table-dark">
+                <tr>
+                    <th>Nome</th>
+                    <th>CPF</th>
+                    <th>E-mail</th>
+                    <th>Pontuação</th>
+                    <th>Acertos</th>
+                    <th>Total Questões</th>
+                    <th>Data</th>
+                    <th>Simulado</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="(aluno, idx) in alunos" :key="aluno.cpf">
+                    <td>
+                        <button class="btn btn-link p-0"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                :data-bs-target="'#detalhes'+idx">
+                            [[ aluno.nome ]]
+                        </button>
+                    </td>
+                    <td>[[ aluno.cpf ]]</td>
+                    <td>[[ aluno.email ]]</td>
+                    <td>[[ aluno.score ]]</td>
+                    <td>[[ aluno.total_correct ]]</td>
+                    <td>[[ aluno.total_questions ]]</td>
+                    <td>[[ aluno.data ]]</td>
+                    <td>[[ aluno.sheet_name ]]</td>
+                </tr>
+                <!-- 🔹 Linha colapsável com detalhes -->
+                <tr :id="'detalhes'+idx" class="collapse">
+                    <td colspan="8">
+                        <div v-if="aluno.results && aluno.results.length > 0">
+                            <div v-for="(r, i) in aluno.results" :key="i" class="question-box">
+                                <p><strong>[[ i+1 ]]. [[ r.question_text ]]</strong></p>
+                                <p v-if="r.correct" class="correct">✔ Acertou — Resposta correta: [[ r.correct_option ]]</p>
+                                <p v-else class="incorrect">
+                                    ✘ Errou — Sua resposta: [[ r.user_option ]] <br>
+                                    <span class="correct">Resposta correta: [[ r.correct_option ]]</span>
+                                </p>
+                            </div>
+                        </div>
+                        <div v-else class="text-muted">Nenhuma resposta registrada para este aluno.</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div v-else class="alert alert-warning mt-3">
+        Nenhum resultado encontrado para esta turma.
+    </div>
+
+    <a href="/" class="btn-back">⬅ Voltar ao Início</a>
+</div>
+
+<!-- Vue App -->
+<script>
+const { createApp } = Vue;
+
+createApp({
+    delimiters: ['[[', ']]'],
+    data() {
+        return {
+            turma_id: "{{ turma_id }}",
+            alunos: [],
+            mediaTurma: 0,
+            melhorNota: 0,
+            piorNota: 0
+        };
+    },
+    mounted() {
+        axios.get(`/api/turma_result/${this.turma_id}`)
+            .then(response => {
+                this.alunos = response.data.alunos || [];
+                if (this.alunos.length > 0) {
+                    const scores = this.alunos.map(a => parseFloat(a.score));
+                    this.mediaTurma = scores.reduce((a,b) => a+b, 0) / scores.length;
+                    this.melhorNota = Math.max(...scores);
+                    this.piorNota = Math.min(...scores);
+
+                    this.$nextTick(() => {
+                        this.renderCharts(scores, this.alunos.map(a => a.nome));
+                    });
+                }
+            })
+            .catch(error => {
+                console.error("Erro ao carregar resultados da turma:", error);
+            });
+    },
+    methods: {
+        renderCharts(scores, nomes) {
+            new Chart(document.getElementById('scoreChart'), {
+                type: 'bar',
+                data: {
+                    labels: nomes,
+                    datasets: [{
+                        label: 'Pontuação',
+                        data: scores,
+                        backgroundColor: '#002f66'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { title: { display: true, text: 'Pontuação por Aluno' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            const bins = [0,5,10,15,20];
+            const dist = bins.map((b,i) => {
+                const next = bins[i+1] || 20;
+                return scores.filter(s => s >= b && s < next).length;
+            });
+
+            new Chart(document.getElementById('distChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['0-5','5-10','10-15','15-20'],
+                    datasets: [{
+                        label: 'Número de alunos',
+                        data: dist,
+                        backgroundColor: '#28a745'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { title: { display: true, text: 'Distribuição de Notas' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+    }
+}).mount('#app');
+</script>
+  <div style="position:fixed; right:12px; bottom:12px; z-index:9999; background:rgba(17,24,39,.92); color:#fff; padding:8px 12px; border-radius:999px; font-size:.78rem; box-shadow:0 4px 12px rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.14);">
+    © Jonatan da Silva Romao
+  </div>
+  <footer style="background:#111827; color:#f9fafb; margin-top:40px; padding:18px 20px; text-align:center; font-size:.92rem; border-top:3px solid #0d6efd;">
+    <p style="margin:0 0 6px 0;"><strong>© 2026 Jonatan da Silva Romao - Todos os direitos reservados.</strong></p>
+    <p style="margin:0;">Sistema proprietário. É proibida a reprodução, distribuição, cópia, modificação ou uso sem autorização expressa do autor.</p>
+  </footer>
+</body>
+</html>

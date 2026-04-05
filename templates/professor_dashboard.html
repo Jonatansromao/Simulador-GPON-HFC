@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block titulo %}Painel do Professor{% endblock %}
+
+{% block conteudo %}
+<div class="container" id="app">
+  <!-- Cabeçalho -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2>Painel do Professor</h2>
+      <small class="text-muted">Usuário: {{ nome }}</small>
+    </div>
+    <div class="text-end">
+      <a href="{{ url_for('html_bp.resultados_individuais') }}" class="btn btn-info me-2">📊 Resultados Individuais</a>
+      <a href="{{ url_for('html_bp.professor_logout') }}" class="btn btn-danger">🚪 Logout</a>
+    </div>
+  </div>
+
+  <div class="alert alert-secondary">
+    <strong>Assinatura:</strong> {{ subscription_status }}
+    {% if expires_at %}
+      <span>— Vigente até <strong>{{ expires_at }}</strong></span>
+    {% endif %}
+    {% if subscription_status == 'Free' %}
+      <span class="text-warning"> — Apenas o perfil está disponível até assinar.</span>
+    {% endif %}
+    <a href="{{ url_for('html_bp.professor_premium') }}" class="btn btn-sm btn-outline-primary float-end">Assinar Premium</a>
+  </div>
+
+  <!-- Cadastro de Turma -->
+  <div class="card shadow p-4">
+    <h4>Cadastro de Turma</h4>
+    <ul class="nav nav-tabs">
+      <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#aleatoria">Aleatória</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#manual">Manual</button>
+      </li>
+    </ul>
+
+    <div class="tab-content mt-3">
+      <!-- Aba Aleatória -->
+      <div class="tab-pane fade show active" id="aleatoria">
+        <form method="POST" action="{{ url_for('html_bp.professor_dashboard') }}">
+          <input type="hidden" name="modo" value="aleatoria">
+          <div class="mb-3"><label class="form-label">Nome da Turma</label><input type="text" class="form-control" name="turma" required></div>
+          <div class="mb-3"><label class="form-label">Disciplina</label><input type="text" class="form-control" name="disciplina" required></div>
+          <div class="mb-3"><label class="form-label">Data da Prova</label><input type="date" class="form-control" name="data" required></div>
+          <div class="mb-3">
+            <label class="form-label">Banco de Questões</label>
+            <select class="form-select" name="sheet_name">
+              <option value="HFC">HFC</option>
+              <option value="GPON">GPON</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-success w-100 btn-option"><span>🎲</span> Gerar Avaliação Aleatória</button>
+        </form>
+      </div>
+
+      <!-- Aba Manual -->
+      <div class="tab-pane fade" id="manual">
+        <form method="POST" action="{{ url_for('html_bp.professor_dashboard') }}">
+          <input type="hidden" name="modo" value="manual">
+          <div class="mb-3"><label class="form-label">Nome da Turma</label><input type="text" class="form-control" name="turma" required></div>
+          <div class="mb-3"><label class="form-label">Disciplina</label><input type="text" class="form-control" name="disciplina" required></div>
+          <div class="mb-3"><label class="form-label">Data da Prova</label><input type="date" class="form-control" name="data" required></div>
+          <div class="mb-3">
+            <label class="form-label">Banco de Questões</label>
+            <select class="form-select" name="sheet_name" v-model="banco" @change="carregarQuestoes">
+              <option value="HFC">HFC</option>
+              <option value="GPON">GPON</option>
+            </select>
+          </div>
+          <h5>Selecione as questões:</h5>
+          {% raw %}
+          <transition name="fade">
+            <div id="questoesContainer" class="list-group">
+              <div v-if="loading" class="spinner">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p>Carregando questões...</p>
+              </div>
+              <label v-for="q in questoes" :key="q.id" class="list-group-item">
+                <input type="checkbox" name="questoes" :value="q.id" v-model="selecionadas">
+                <strong>{{ q.texto }}</strong><br>
+                <small>
+                  Opções:
+                  <span v-for="op in q.opcoes" :key="op.label" class="me-2">
+                    {{ op.label }}) {{ op.texto }}
+                  </span>
+                </small>
+              </label>
+            </div>
+          </transition>
+          <div id="contador">Questões selecionadas: {{ selecionadas.length }}</div>
+          {% endraw %}
+          <button type="submit" class="btn btn-primary w-100 btn-option mt-3"><span>📝</span> Criar Turma Manual</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Turmas já criadas -->
+  <div class="card shadow p-4">
+    <h4>Turmas já criadas</h4>
+    <div class="table-responsive">
+      <table class="table table-striped table-hover align-middle mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Turma</th>
+            <th>Disciplina</th>
+            <th>Data</th>
+            <th>Banco</th>
+            <th>Status</th>
+            <th>Alunos</th>
+            <th>Prontos</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="turmas-body">
+        {% for turma in turmas %}
+        <tr data-id="{{ turma.id }}">
+          <td>{{ turma.nome }}</td>
+          <td>{{ turma.disciplina }}</td>
+          <td>{{ turma.data.strftime("%d/%m/%Y") if turma.data else "" }}</td>
+          <td>{{ turma.sheet_name }}</td>
+          <td>{{ turma.status }}</td>
+          <td>{{ turma.alunos|length }}</td>
+          <td>{{ turma.prontos }}</td>
+          <td>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Ações">
+              <a href="/turma_result/{{ turma.id }}" class="btn btn-primary">📊</a>
+              <button class="btn btn-danger" onclick="excluirTurma({{ turma.id }})">🗑</button>
+              {% if turma.status == "Aguardando" %}
+                <form method="POST" action="/iniciar_quiz/{{ turma.id }}" style="display:inline;">
+                  <button type="submit" class="btn btn-success">▶</button>
+                </form>
+              {% elif turma.status == "Em andamento" %}
+                <form method="POST" action="/encerrar_quiz/{{ turma.id }}" style="display:inline;">
+                  <button type="submit" class="btn btn-warning">⏹</button>
+                </form>
+              {% elif turma.status == "Encerrado" %}
+                <form method="POST" action="/resetar_turma/{{ turma.id }}" style="display:inline;">
+                  <button type="submit" class="btn btn-secondary">🔄</button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted">Nenhuma turma cadastrada ainda.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  // Conecta ao servidor Socket.IO (apenas uma vez)
+  const socket = io();
+
+  // Atualiza status da turma
+  socket.on("status_turma_atualizado", function(data) {
+    const row = document.querySelector(`#turmas-body tr[data-id="${data.id}"]`);
+    if (row) {
+      row.querySelector("td:nth-child(5)").textContent = data.status;
+    }
+  });
+
+  // Atualiza contagem de prontos
+  socket.on("alunos_prontos_atualizado", function(data) {
+    const row = document.querySelector(`#turmas-body tr[data-id="${data.id}"]`);
+    if (row) {
+      row.querySelector("td:nth-child(6)").textContent = data.total;
+      row.querySelector("td:nth-child(7)").textContent = data.prontos;
+    }
+  });
+</script>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+  data() {
+    return {
+      nome: "{{ nome }}",
+      banco: "HFC",
+      questoes: [],
+      selecionadas: [],
+      loading: false
+    }
+  },
+  mounted() {
+    this.carregarQuestoes();
+
+    // Conecta ao servidor Socket.IO
+    const socket = io();
+
+    // Escuta evento de atualização de status vindo do backend
+    socket.on("status_turma_atualizado", (data) => {
+      const row = document.querySelector(`#turmas-body tr[data-id="${data.id}"]`);
+      if (row) {
+        // Atualiza célula de status
+        row.querySelector("td:nth-child(5)").textContent = data.status;
+
+        // Atualiza botões conforme novo status
+        const botoesCell = row.querySelector("td:last-child");
+        let html = `
+          <a href="/turma_result/${data.id}" class="btn btn-primary btn-sm">📊 Resultados</a>
+          <button class="btn btn-danger btn-sm" onclick="excluirTurma(${data.id})">🗑 Excluir</button>
+        `;
+        if (data.status === "Aguardando") {
+          html += `<form method="POST" action="/iniciar_quiz/${data.id}" style="display:inline;">
+                     <button type="submit" class="btn btn-success btn-sm">▶ Iniciar Quiz</button>
+                   </form>`;
+        } else if (data.status === "Em andamento") {
+          html += `<form method="POST" action="/encerrar_quiz/${data.id}" style="display:inline;">
+                     <button type="submit" class="btn btn-warning btn-sm">⏹ Encerrar Quiz</button>
+                   </form>`;
+        } else if (data.status === "Encerrado") {
+          html += `<form method="POST" action="/resetar_turma/${data.id}" style="display:inline;">
+                     <button type="submit" class="btn btn-secondary btn-sm">🔄 Reiniciar Turma</button>
+                   </form>`;
+        }
+        botoesCell.innerHTML = html;
+      }
+    });
+  },
+  methods: {
+    carregarQuestoes() {
+      this.loading = true;
+      fetch("/get_questoes_professor/" + this.banco)
+        .then(res => res.json())
+        .then(data => {
+          this.questoes = data;
+          this.loading = false;
+          this.selecionadas = [];
+        })
+        .catch(err => {
+          console.error('Erro ao carregar questões:', err);
+          this.loading = false;
+        });
+    }
+  }
+}).mount('#app');
+
+// Função global para excluir turma via fetch
+function excluirTurma(id) {
+  if (!confirm("Tem certeza que deseja excluir esta turma?")) return;
+
+  fetch(`/delete_turma/${id}`, {
+    method: "POST",
+    headers: { "X-Requested-With": "XMLHttpRequest" }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      showToast(data.message, "success");
+      // Remove a linha da tabela imediatamente
+      document.querySelector(`#turmas-body tr[data-id="${id}"]`)?.remove();
+    } else {
+      showToast("Erro: " + data.message, "danger");
+    }
+  })
+  .catch(err => {
+    console.error("Erro ao excluir turma:", err);
+    showToast("Erro inesperado ao excluir turma", "danger");
+  });
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}

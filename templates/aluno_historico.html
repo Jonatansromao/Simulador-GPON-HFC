@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Histórico do Aluno</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f5f5f5; }
+        .container {
+            margin-top: 20px;
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            max-width: 100%;
+        }
+        h2 { text-align: center; color: #002f66; margin-bottom: 20px; }
+        .question-box {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background-color: #fafafa;
+        }
+        .correct { color: #28a745; font-weight: bold; }
+        .incorrect { color: #dc3545; font-weight: bold; }
+
+        /* 🔹 Destaque para tipos de simulados */
+        .simulado-livre {
+            background-color: #e9f7ff; /* azul claro */
+            font-weight: bold;
+            color: #004085;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        .simulado-turma {
+            background-color: #e6ffe9; /* verde claro */
+            font-weight: bold;
+            color: #155724;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+<div id="app" class="container" data-cpf="{{ cpf }}">
+    <h2>📊 Histórico de Resultados</h2>
+
+    <!-- Estado de carregamento -->
+    <div v-if="loading" class="text-center mt-3">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+        <p class="mt-2">Carregando resultados...</p>
+    </div>
+
+    <!-- Resultados -->
+    <div v-else-if="resultados.length > 0" class="table-responsive">
+        <table class="table table-striped table-bordered">
+            <thead class="table-dark">
+                <tr>
+                    <th>Data</th>
+                    <th>Simulado</th>
+                    <th>Turma</th>
+                    <th>Acertos</th>
+                    <th>Total</th>
+                    <th>Nota</th>
+                    <th>Detalhes</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template v-for="(r, idx) in resultados" :key="idx">
+                    <tr>
+                        <td>[[ r.data ]]</td>
+                        <td>
+                            <span :class="r.sheet_name.includes('Livre') ? 'simulado-livre' : 'simulado-turma'">
+                                [[ r.sheet_name.includes('Livre') ? '📘 ' + r.sheet_name : '🎓 ' + r.sheet_name ]]
+                            </span>
+                        </td>
+                        <td>[[ r.turma_id ]]</td>
+                        <td>[[ r.total_correct ]]</td>
+                        <td>[[ r.total_questions ]]</td>
+                        <td>[[ r.score.toFixed(1) ]]</td>
+                        <td>
+                            <button class="btn btn-link p-0" type="button"
+                                    data-bs-toggle="collapse" :data-bs-target="'#detalhes'+idx"
+                                    @click="toggleExpand(idx)">
+                                [[ expanded[idx] ? '➖ Recolher' : '➕ Expandir' ]]
+                            </button>
+                        </td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" @click.prevent="excluirTentativa(r.turma_id, r.data)">Excluir</button>
+                        </td>
+                    </tr>
+                    <tr :id="'detalhes'+idx" class="collapse">
+                        <td colspan="7">
+                            <div v-if="r.results && r.results.length > 0">
+                                <div v-for="(res, i) in r.results" :key="i" class="question-box">
+                                    <p><strong>[[ i+1 ]]. [[ res.question_text ]]</strong></p>
+                                    <p v-if="res.correct" class="correct">
+                                        ✔ Acertou — Resposta correta: [[ res.correct_option ]] ) [[ res.correct_option_text ]]
+                                    </p>
+                                    <p v-else class="incorrect">
+                                        ✘ Errou — Sua resposta: [[ res.user_option ]] ) [[ res.user_option_text ]] <br>
+                                        <span class="correct">Resposta correta: [[ res.correct_option ]] ) [[ res.correct_option_text ]]</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div v-else class="text-muted">Nenhuma resposta registrada.</div>
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Nenhum resultado -->
+    <div v-else class="alert alert-warning mt-3">
+        Nenhum resultado encontrado.
+    </div>
+
+    <a href="{{ url_for('html_bp.aluno_dashboard') }}" class="btn btn-secondary w-100 mt-3">⬅ Voltar ao Painel do Aluno</a>
+</div>
+
+<!-- Importa Vue, Axios e Bootstrap JS -->
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+    delimiters: ['[[', ']]'],
+    data() {
+        return { resultados: [], loading: true, expanded: {} };
+    },
+    methods: {
+        toggleExpand(idx) {
+            this.expanded[idx] = !this.expanded[idx];
+        },
+        excluirTentativa(turmaId, data) {
+            if (!confirm('Deseja realmente excluir esta tentativa?')) {
+                return;
+            }
+
+            const [dia, mes, anoEHora] = data.split('/');
+            const [ano, hora] = [anoEHora.split(' ')[0], anoEHora.split(' ')[1]];
+            const dataIso = `${ano}-${mes}-${dia}T${hora}:00`;
+
+            fetch('/aluno/excluir_tentativa', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ turma_id: turmaId, data: dataIso })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.mensagem) {
+                    alert(res.mensagem);
+                    window.location.reload();
+                } else {
+                    alert(res.erro || 'Erro inesperado ao excluir.');
+                }
+            })
+            .catch(err => console.error('Erro ao excluir tentativa:', err));
+        }
+    },
+    mounted() {
+        const cpf = document.getElementById('app').getAttribute('data-cpf');
+        axios.get(`/api/aluno_result/${cpf}`)
+            .then(response => {
+                this.resultados = response.data.resultados || [];
+            })
+            .catch(error => {
+                console.error("Erro ao carregar histórico:", error);
+            })
+            .finally(() => {
+                this.loading = false;
+            });
+    }
+}).mount('#app');
+</script>
+  <div style="position:fixed; right:12px; bottom:12px; z-index:9999; background:rgba(17,24,39,.92); color:#fff; padding:8px 12px; border-radius:999px; font-size:.78rem; box-shadow:0 4px 12px rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.14);">
+    © Jonatan da Silva Romao
+  </div>
+  <footer style="background:#111827; color:#f9fafb; margin-top:40px; padding:18px 20px; text-align:center; font-size:.92rem; border-top:3px solid #0d6efd;">
+    <p style="margin:0 0 6px 0;"><strong>© 2026 Jonatan da Silva Romao - Todos os direitos reservados.</strong></p>
+    <p style="margin:0;">Sistema proprietário. É proibida a reprodução, distribuição, cópia, modificação ou uso sem autorização expressa do autor.</p>
+  </footer>
+</body>
+</html>

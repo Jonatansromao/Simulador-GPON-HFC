@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel do Professor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f5f5f5; }
+        .container { margin-top: 30px; }
+        .card { margin-bottom: 20px; }
+        .logout-btn { float: right; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Painel do Professor</h2>
+        <div class="text-end">
+            {% if session.professor_username %}
+                <small class="text-muted">Usuário: {{ session.professor_username }}</small><br>
+            {% endif %}
+            <!-- 🔹 Botão para Resultados Individuais fixo no topo -->
+            <a href="/resultados_individuais" class="btn btn-info me-2">📊 Resultados Individuais</a>
+            <a href="/logout" class="btn btn-danger logout-btn">Logout</a>
+        </div>
+    </div>
+
+    {% if message %}
+    <div class="alert alert-info">{{ message }}</div>
+    {% endif %}
+
+    <!-- Cadastro de Turma -->
+    <div class="card shadow p-4">
+        <h4>Cadastro de Turma</h4>
+        <form method="POST" action="/professor">
+            <div class="mb-3">
+                <label for="turma" class="form-label">Nome da Turma</label>
+                <input type="text" class="form-control" id="turma" name="turma" required>
+            </div>
+            <div class="mb-3">
+                <label for="disciplina" class="form-label">Disciplina</label>
+                <input type="text" class="form-control" id="disciplina" name="disciplina" required>
+            </div>
+            <div class="mb-3">
+                <label for="data" class="form-label">Data da Prova</label>
+                <input type="date" class="form-control" id="data" name="data" required>
+            </div>
+            <div class="mb-3">
+                <label for="sheet_name" class="form-label">Banco de Questões</label>
+                <select class="form-select" id="sheet_name" name="sheet_name">
+                    <option value="HFC">HFC</option>
+                    <option value="GPON">GPON</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-success">Gerar Avaliação</button>
+        </form>
+    </div>
+
+    <!-- Turmas já criadas -->
+    <div class="card shadow p-4">
+        <h4>Turmas já criadas</h4>
+        <table class="table table-striped">
+            <thead class="table-dark">
+                <tr>
+                    <th>Turma</th>
+                    <th>Disciplina</th>
+                    <th>Data</th>
+                    <th>Banco</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for turma in turmas %}
+                <tr>
+                    <td>{{ turma[0] }}</td>
+                    <td>{{ turma[1] }}</td>
+                    <td>{{ turma[2] }}</td>
+                    <td>{{ turma[4] }}</td>
+                    <td>
+                        <a href="/turma_result/{{ turma[0] }}" class="btn btn-primary btn-sm">Resultados</a>
+                        <a href="/delete_turma/{{ turma[0] }}" class="btn btn-danger btn-sm">Excluir</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">Nenhuma turma cadastrada ainda.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+  <div style="position:fixed; right:12px; bottom:12px; z-index:9999; background:rgba(17,24,39,.92); color:#fff; padding:8px 12px; border-radius:999px; font-size:.78rem; box-shadow:0 4px 12px rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.14);">
+    © Jonatan da Silva Romao
+  </div>
+  <footer style="background:#111827; color:#f9fafb; margin-top:40px; padding:18px 20px; text-align:center; font-size:.92rem; border-top:3px solid #0d6efd;">
+    <p style="margin:0 0 6px 0;"><strong>© 2026 Jonatan da Silva Romao - Todos os direitos reservados.</strong></p>
+    <p style="margin:0;">Sistema proprietário. É proibida a reprodução, distribuição, cópia, modificação ou uso sem autorização expressa do autor.</p>
+  </footer>
+</body>
+</html>

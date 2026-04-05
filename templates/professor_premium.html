@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block titulo %}Assinatura Premium - Simulador ETN{% endblock %}
+
+{% block conteudo %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="card-title mb-0">💳 Assinatura Premium - Simulador ETN</h3>
+                </div>
+                <div class="card-body">
+                    {% if is_active %}
+                        <div class="alert alert-success">
+                            <h5>✅ Assinatura Ativa</h5>
+                            <p>Tipo: <strong>{{ subscription_status }}</strong></p>
+                            <p>Sua assinatura está ativa até <strong>{{ expires_at }}</strong>.</p>
+                            <p>Aproveite todas as funcionalidades do Simulador ETN!</p>
+                        </div>
+                        <div class="text-center mt-3">
+                            <a href="{{ url_for('html_bp.professor_dashboard') }}" class="btn btn-primary btn-lg">Ir para o Painel</a>
+                        </div>
+                    {% else %}
+                        <!-- Informações do Plano -->
+                        <div class="alert alert-info">
+                            <h5>🎯 Plano Premium</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>Funcionalidades Incluídas:</h6>
+                                    <ul class="list-unstyled">
+                                        <li>✅ Criar turmas ilimitadas</li>
+                                        <li>✅ Ver histórico dos alunos</li>
+                                        <li>✅ Excluir respostas de alunos</li>
+                                        <li>✅ Relatórios detalhados</li>
+                                        <li>✅ Suporte prioritário</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <h3 class="text-success">R$ 250,00</h3>
+                                    <p class="text-muted">/ mês com renovação automática</p>
+                                    <p class="text-info"><small>Primeiro pagamento via PIX ou Cartão</small></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Abas de Pagamento -->
+                        <ul class="nav nav-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="pix-tab" data-bs-toggle="tab" data-bs-target="#pix-content" 
+                                        type="button" role="tab" aria-controls="pix-content" aria-selected="true">
+                                    💚 PIX (Instantâneo)
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="card-tab" data-bs-toggle="tab" data-bs-target="#card-content" 
+                                        type="button" role="tab" aria-controls="card-content" aria-selected="false">
+                                    💳 Cartão de Crédito/Débito
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Conteúdo das Abas -->
+                        <div class="tab-content mt-4">
+                            <!-- TAB PIX -->
+                            <div class="tab-pane fade show active" id="pix-content" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h5>💚 Pagamento Mercado Pago</h5>
+                                        <p class="text-muted">Pagamento instantâneo e automático</p>
+                                        
+                                        {% if mercadopago_error_message %}
+                                            <div class="alert alert-warning">
+                                                <strong>Mercado Pago com aviso:</strong>
+                                                <p class="mb-0">{{ mercadopago_error_message }}</p>
+                                            </div>
+                                        {% endif %}
+
+                                        {% if qr_code %}
+                                            <div class="text-center mb-3">
+                                                <img src="{{ qr_code }}" alt="QR Code PIX" style="max-width: 280px; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
+                                            </div>
+                                        {% endif %}
+
+                                        {% if pix_code %}
+                                            <label for="pix-code-area" class="form-label"><strong>Código PIX copia e cola</strong></label>
+                                            <textarea id="pix-code-area" class="form-control" rows="5" readonly>{{ pix_code }}</textarea>
+                                            <button type="button" class="btn btn-success w-100 mt-2" onclick="copiarCodigoPix()">
+                                                📋 Copiar código PIX
+                                            </button>
+                                        {% endif %}
+
+                                        {% if pix_ticket_url %}
+                                            <div class="text-center mt-3">
+                                                <a href="{{ pix_ticket_url }}" target="_blank" class="btn btn-outline-success">
+                                                    🔗 Abrir instruções no Mercado Pago
+                                                </a>
+                                            </div>
+                                        {% endif %}
+
+                                        <p class="text-success mt-3"><small>✅ Pagamento detectado automaticamente</small></p>
+                                        <p class="text-muted"><small>💰 Valor: R$ 250,00</small></p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h5>🔑 Dados do Recebedor</h5>
+                                        <div class="alert alert-light border">
+                                            <p><strong>Titular:</strong> {{ pix_data.holder }}</p>
+                                            <p><strong>CPF:</strong> {{ pix_data.cpf }}</p>
+                                            <p><strong>Banco:</strong> {{ pix_data.bank }}</p>
+                                            <p><strong>Valor:</strong> R$ {{ "%.2f"|format(pix_data.amount) }}</p>
+                                            <p><strong>Descrição:</strong> {{ pix_data.description }}</p>
+                                        </div>
+                                        {% if pending_payment %}
+                                            <div class="alert alert-warning">
+                                                <h6>⏳ Pagamento PIX pendente</h6>
+                                                <p>Solicitação registrada em {{ pending_payment.created_at.strftime('%d/%m/%Y %H:%M') }}.</p>
+                                                <p>Status: <strong>{{ pending_payment.status|capitalize }}</strong></p>
+                                                <p>O pagamento será confirmado manualmente.</p>
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="alert alert-info">
+                                            <h6>🚀 Como pagar via PIX:</h6>
+                                            <ol style="font-size: 0.9rem;">
+                                                <li>Abra o app do seu banco</li>
+                                                <li>Escolha a opção <strong>PIX copia e cola</strong> ou <strong>Ler QR Code</strong></li>
+                                                <li>Use o código ou escaneie o QR acima</li>
+                                                <li>Confirme o valor de <strong>R$ 250,00</strong></li>
+                                                <li>Após o pagamento, a assinatura será ativada automaticamente</li>
+                                            </ol>
+                                        </div>
+
+                                        <form method="POST" action="{{ url_for('html_bp.professor_pagar_pix') }}" class="mt-3">
+                                            <input type="hidden" name="pix_code" value="{{ pix_code }}">
+                                            <button type="submit" class="btn btn-outline-success w-100 btn-lg">
+                                                ✅ Já paguei, conferir status
+                                            </button>
+                                            <p class="text-muted text-center mt-2"><small>Normalmente a ativação é automática; este botão serve como reforço.</small></p>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB CARTÃO -->
+                                                        <div class="tab-pane fade" id="card-content" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-md-8 mx-auto">
+                                        <h5>💳 Pagamento com Cartão</h5>
+                                        <p class="text-muted">Use o mesmo checkout do Mercado Pago para pagar com cartão.</p>
+
+                                        {% if pix_payment_url %}
+                                            <div class="text-center mb-3">
+                                                <a href="{{ pix_payment_url }}" target="_blank" class="btn btn-primary btn-lg">
+                                                    💳 Pagar com Cartão via Mercado Pago
+                                                </a>
+                                            </div>
+                                            <p class="text-muted"><small>Escolha cartão no checkout do Mercado Pago.</small></p>
+                                            <div class="alert alert-warning text-start mt-3">
+                                                <strong>Importante para teste:</strong>
+                                                <ul class="mb-0 mt-2">
+                                                    <li>abra o link em <strong>janela anônima</strong> ou saia da conta vendedora do Mercado Pago;</li>
+                                                    <li>use <strong>outra conta/comprador</strong> para testar;</li>
+                                                    <li>se estiver logado na mesma conta recebedora, o botão <strong>Pagar</strong> pode ficar cinza.</li>
+                                                </ul>
+                                            </div>
+                                        {% else %}
+                                            <div class="alert alert-warning">
+                                                <p>O checkout do Mercado Pago não está disponível no momento. Use o QR code manual ou configure Mercado Pago.</p>
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="alert alert-info mt-3">
+                                            <h6>🛡️ Segurança:</h6>
+                                            <p class="mb-0"><small>
+                                                Todos os pagamentos são processados com segurança pelo Mercado Pago.
+                                            </small></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+<!-- Informações Gerais -->
+                        <hr class="my-4">
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <h6>💰 Sem Taxa Oculta</h6>
+                                <p class="text-muted">R$ 250,00 é o valor único cobrado</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>🔄 Renovação Automática</h6>
+                                <p class="text-muted">A cada mês no mesmo dia</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>❌ Cancele Quando Quiser</h6>
+                                <p class="text-muted">Sem multa ou compromisso</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function copiarCodigoPix() {
+    const campo = document.getElementById('pix-code-area');
+    if (!campo) return;
+    campo.select();
+    campo.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(campo.value).then(() => {
+        alert('Código PIX copiado com sucesso.');
+    }).catch(() => {
+        document.execCommand('copy');
+        alert('Código PIX copiado com sucesso.');
+    });
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block titulo %}Página Inicial - Simulador ETN{% endblock %}
+
+{% block conteudo %}
+<div class="home-container text-center text-light">
+    <div class="overlay">
+        <h1 class="mb-4">Bem-vindo ao Simulador ETN</h1>
+        <p class="lead mb-5">Treine seus conhecimentos em HFC e GPON</p>
+
+        <div class="row justify-content-center">
+            <!-- Card Aluno -->
+            <div class="col-md-5 col-sm-12 mb-3">
+                <div class="card shadow-lg border-primary h-100">
+                    <div class="card-body text-center">
+                        <div style="font-size: 3rem; color: #0d6efd;">📚</div>
+                        <h4 class="mt-2">Aluno</h4>
+                        <p class="text-muted">Faça login para acessar simulados, turmas e seu histórico.</p>
+                        <a href="{{ url_for('html_bp.login_aluno') }}" class="btn btn-primary w-100 btn-lg mb-2">
+                            🔑 Login Aluno
+                        </a>
+                        <a href="{{ url_for('html_bp.aluno_register') }}" class="btn btn-outline-primary w-100 btn-lg">
+                            📝 Criar Conta de Aluno
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Professor -->
+            <div class="col-md-5 col-sm-12 mb-3">
+                <div class="card shadow-lg border-warning h-100">
+                    <div class="card-body text-center">
+                        <div style="font-size: 3rem; color: #ffc107;">👨‍🏫</div>
+                        <h4 class="mt-2">Professor</h4>
+                        <p class="text-muted">Somente professores premium podem criar turmas, gerar avaliações e acompanhar resultados.</p>
+                        <a href="{{ url_for('html_bp.login_professor') }}" class="btn btn-warning w-100 btn-lg mb-2">
+                            🔑 Login Professor
+                        </a>
+                        <a href="{{ url_for('html_bp.professor_register') }}" class="btn btn-outline-warning w-100 btn-lg mb-2">
+                            📝 Criar Conta de Professor
+                        </a>
+                        <a href="{{ url_for('html_bp.professor_premium') }}" class="btn btn-primary w-100 btn-lg">
+                            ⭐ Assinar Premium
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-info mt-4">
+            Bem-vindo ao Simulador ETN! Aqui você pode treinar seus conhecimentos em <strong>HFC</strong> e <strong>GPON</strong>.
+            <hr>
+            <small><strong>Autor:</strong> Jonatan da Silva Romao • Plataforma proprietária com todos os direitos reservados.</small>
+        </div>
+    </div>
+</div>
+
+<style>
+    .home-container {
+        background: url("https://images.unsplash.com/photo-1529070538774-1843cb3265df?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80") no-repeat center center fixed;
+        background-size: cover;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .overlay {
+        background-color: rgba(0, 0, 0, 0.6);
+        padding: 40px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 1200px;
+    }
+
+    h1 { color: #fff; }
+    .card { transition: transform 0.2s ease-in-out; }
+    .card:hover { transform: translateY(-5px); }
+
+    @media (max-width: 768px) {
+        .overlay { padding: 20px; }
+        h1 { font-size: 1.8rem; }
+        .lead { font-size: 1rem; }
+    }
+</style>
+{% endblock %}

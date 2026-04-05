@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="author" content="Jonatan da Silva Romao">
+    <meta name="copyright" content="Jonatan da Silva Romao - Todos os direitos reservados">
+    <meta name="description" content="Plataforma proprietária de autoria de Jonatan da Silva Romao, com conteúdo, layout e código-fonte protegidos por direitos autorais.">
+    <title>{% block titulo %}Simulador ETN | Jonatan da Silva Romao{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .container { margin-top: 40px; max-width: 1200px; }
+        .main-content { flex: 1 0 auto; }
+        .table-responsive { -webkit-overflow-scrolling: touch; }
+        .copyright-banner {
+            background: linear-gradient(90deg, #0d6efd, #111827);
+            color: #fff;
+            text-align: center;
+            font-size: 0.92rem;
+            padding: 8px 12px;
+            letter-spacing: 0.2px;
+        }
+        .site-footer {
+            background: #111827;
+            color: #f9fafb;
+            margin-top: 40px;
+            padding: 18px 20px;
+            font-size: 0.92rem;
+            border-top: 3px solid #0d6efd;
+        }
+        .site-footer strong {
+            color: #ffffff;
+        }
+        .author-badge {
+            position: fixed;
+            right: 14px;
+            bottom: 14px;
+            z-index: 1030;
+            background: rgba(17, 24, 39, 0.92);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+            border: 1px solid rgba(255,255,255,0.14);
+        }
+        @media (max-width: 992px) {
+            .container { margin-top: 20px; padding: 0 0.75rem; }
+            .card { padding: 0.9rem !important; }
+            .navbar-nav .nav-link { padding: 0.45rem 0.6rem; }
+            .site-footer { font-size: 0.85rem; }
+            .copyright-banner { font-size: 0.82rem; }
+            .author-badge {
+                right: 10px;
+                bottom: 10px;
+                font-size: 0.72rem;
+                padding: 7px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+  <!-- 🔹 Toast container -->
+  <div class="toast-container position-fixed top-0 end-0 p-3">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="toast align-items-center 
+               {% if category == 'success' %}text-bg-success
+               {% elif category == 'info' %}text-bg-info
+               {% elif category == 'warning' %}text-bg-warning
+               {% elif category == 'danger' %}text-bg-danger
+               {% else %}text-bg-secondary{% endif %}
+               border-0 mb-2"
+               role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000">
+            <div class="d-flex">
+              <div class="toast-body">
+                {{ message }}
+              </div>
+              <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                      data-bs-dismiss="toast" aria-label="Fechar"></button>
+            </div>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <!-- 🔹 Navbar global -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="{{ url_for('html_bp.home') }}">Simulador ETN</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('html_bp.aluno_dashboard') }}">Painel Aluno</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('html_bp.professor_dashboard') }}">Painel Professor</a></li>
+          {% if session.get('usuario') %}
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('html_bp.perfil') }}">Perfil</a></li>
+          {% endif %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('html_bp.login_aluno') }}">Login Aluno</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('html_bp.login_professor') }}">Login Professor</a></li>
+          <li class="nav-item"><a class="nav-link text-danger" href="{{ url_for('html_bp.logout_page') }}">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="copyright-banner">
+    © 2026 Jonatan da Silva Romao • Sistema proprietário • Todos os direitos reservados
+  </div>
+
+  <!-- 🔹 Conteúdo dinâmico -->
+  <main class="container main-content">
+      {% block conteudo %}
+      {% endblock %}
+  </main>
+
+  <footer class="site-footer text-center">
+    <div class="container my-0">
+      <p class="mb-1"><strong>© 2026 Jonatan da Silva Romao - Todos os direitos reservados.</strong></p>
+      <p class="mb-1">Desenvolvido por <strong>Jonatan da Silva Romao</strong> • Sistema proprietário • <strong>Versão 1.0</strong></p>
+      <p class="mb-0">
+        Este sistema, incluindo conteúdo, layout, identidade visual, banco de dados, área de acesso e código-fonte,
+        é de caráter <strong>proprietário</strong> e de autoria de <strong>Jonatan da Silva Romao</strong>. É proibida a reprodução, distribuição, cópia, modificação,
+        engenharia reversa ou uso sem autorização expressa do autor.
+      </p>
+    </div>
+  </footer>
+
+  <div class="author-badge">© Jonatan da Silva Romao</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      document.querySelectorAll('.toast').forEach(toastEl => {
+        new bootstrap.Toast(toastEl).show();
+      });
+
+      const navbarCollapse = document.querySelector('#navbarNav');
+      if (navbarCollapse) {
+        document.querySelectorAll('#navbarNav .nav-link').forEach(link => {
+          link.addEventListener('click', () => {
+            const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse) || new bootstrap.Collapse(navbarCollapse, {toggle: false});
+            bsCollapse.hide();
+          });
+        });
+      }
+    });
+  </script>
+</body>
+</html>

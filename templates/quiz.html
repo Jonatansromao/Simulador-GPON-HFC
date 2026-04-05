@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <!-- 🔹 Essencial para celular -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ titulo }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { background-color: #f5f5f5; }
+        .quiz-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 800px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        .question-box {
+            background-color: #002f66;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .option {
+            display: flex;
+            align-items: center;
+            background-color: #f1f1f1;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: background-color 0.2s, border 0.2s;
+        }
+        .option.selected {
+            background-color: #cce5ff;
+            border-color: #0056b3;
+            font-weight: bold;
+        }
+        .option:hover { background-color: #e6e6e6; }
+        .option-label {
+            background-color: #002f66;
+            color: white;
+            border-radius: 10px;
+            padding: 8px 14px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        .checkmark { margin-left: auto; color: #0056b3; font-weight: bold; }
+        .btn-group { display: flex; justify-content: space-between; margin-top: 20px; }
+        .btn-finalizar { background-color: #28a745; color: white; }
+        .btn-finalizar:hover { background-color: #218838; }
+        .question-footer { text-align: center; margin-top: 15px; font-weight: 500; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<!-- 🔹 Navbar simplificada -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="{{ url_for('html_bp.aluno_dashboard') }}">Painel do Aluno</a>
+    <div class="collapse navbar-collapse">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link text-danger" href="{{ url_for('html_bp.logout_page') }}">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div id="app" class="quiz-container">
+    {% raw %}
+    <div v-if="questions.length > 0">
+        <!-- Texto da questão -->
+        <div class="question-box">
+            {{ current + 1 }}) {{ questions[current].texto }}
+        </div>
+
+        <!-- 🔹 Exibir imagem se houver -->
+        <img v-if="questions[current].imagem"
+             :src="questions[current].imagem"
+             class="img-fluid mb-3"
+             alt="Imagem da questão">
+
+        <!-- Alternativas -->
+        <div v-for="(opcao, idx) in questions[current].opcoes"
+             :key="idx"
+             class="option"
+             :class="{selected: answers[questions[current].id] === opcao.label}"
+             @click="selectOption(questions[current].id, opcao.label)">
+          <span class="option-label">{{ opcao.label.toUpperCase() }}</span>
+          {{ opcao.texto }}
+          <span v-if="answers[questions[current].id] === opcao.label" class="checkmark">✔</span>
+        </div>
+
+        <!-- Navegação -->
+        <div class="btn-group">
+            <button v-if="current > 0" @click="previous" class="btn btn-secondary">Anterior</button>
+            <button v-if="current < total - 1" @click="next" class="btn btn-primary">Próxima</button>
+            <button v-else @click="finish" class="btn btn-finalizar">Finalizar</button>
+        </div>
+
+        <div class="question-footer">
+            Questão {{ current + 1 }} de {{ total }}
+        </div>
+    </div>
+    <div v-else class="alert alert-warning">Nenhuma questão encontrada.</div>
+    {% endraw %}
+</div>
+
+<script>
+new Vue({
+    el: '#app',
+    data: {
+        current: 0,
+        total: 0,
+        questions: [],
+        answers: {}
+    },
+    mounted() {
+        {% if turma_id is defined %}
+            // 🔹 Se for turma, já vem do backend
+            this.questions = {{ questoes|default([])|tojson }};
+            this.total = this.questions.length;
+        {% else %}
+            // 🔹 Se for simulado livre, busca via API
+            const banco = "{{ banco }}";
+            axios.get(`/get_questoes/${banco}`)
+                .then(response => {
+                    if (response.data.erro) {
+                        console.error("Erro:", response.data.erro);
+                        this.questions = [];
+                    } else {
+                        this.questions = response.data;
+                        this.total = this.questions.length;
+                    }
+                })
+                .catch(err => {
+                    console.error("Erro ao carregar questões:", err);
+                    this.questions = [];
+                });
+        {% endif %}
+    },
+    methods: {
+        selectOption(qid, letra) {
+            this.$set(this.answers, qid, letra);
+        },
+        next() {
+            if (!this.answers[this.questions[this.current].id]) {
+                alert("Você precisa selecionar uma opção antes de avançar!");
+                return;
+            }
+            if (this.current < this.total - 1) this.current++;
+        },
+        previous() {
+            if (this.current > 0) this.current--;
+        },
+        finish() {
+            if (!this.answers[this.questions[this.current].id]) {
+                alert("Você precisa selecionar uma opção antes de finalizar!");
+                return;
+            }
+
+            // 🔹 Decide qual endpoint usar: turma ou livre
+            let endpoint = "";
+            {% if turma_id is defined %}
+                endpoint = "{{ url_for('html_bp.submit_answers', turma_id=turma_id) }}";
+            {% else %}
+                endpoint = "{{ url_for('html_bp.submit_answers_free') }}";
+            {% endif %}
+
+            fetch(endpoint, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({answers: this.answers, banco: "{{ banco }}"})
+            })
+            .then(response => response.text())
+            .then(html => {
+                document.open();
+                document.write(html);
+                document.close();
+            });
+        }
+    }
+});
+</script>
+  <div style="position:fixed; right:12px; bottom:12px; z-index:9999; background:rgba(17,24,39,.92); color:#fff; padding:8px 12px; border-radius:999px; font-size:.78rem; box-shadow:0 4px 12px rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.14);">
+    © Jonatan da Silva Romao
+  </div>
+  <footer style="background:#111827; color:#f9fafb; margin-top:40px; padding:18px 20px; text-align:center; font-size:.92rem; border-top:3px solid #0d6efd;">
+    <p style="margin:0 0 6px 0;"><strong>© 2026 Jonatan da Silva Romao - Todos os direitos reservados.</strong></p>
+    <p style="margin:0;">Sistema proprietário. É proibida a reprodução, distribuição, cópia, modificação ou uso sem autorização expressa do autor.</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Resultados da Turma {{ turma_id }}</title>
+    <a href="{{ url_for('html_bp.professor_dashboard') }}" class="btn btn-secondary">⬅ Voltar ao Painel</a>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .toggle-icon {
+            transition: transform 0.3s ease;
+            font-weight: bold;
+            margin-left: 6px;
+        }
+        .highlight-row {
+            background-color: #f0f8ff; /* azul claro */
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+    <h2>Resultados da Turma {{ turma_id }}</h2>
+
+    {% if alunos %}
+    <div class="alert alert-info">
+        <strong>Média da turma:</strong> {{ media }} <br>
+        <strong>Melhor nota:</strong> {{ melhor }} <br>
+        <strong>Pior nota:</strong> {{ pior }}
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6"><canvas id="scoreChart"></canvas></div>
+        <div class="col-md-6"><canvas id="distChart"></canvas></div>
+    </div>
+
+    <table class="table table-striped table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th>Nome</th><th>CPF</th><th>E-mail</th><th>Pontuação</th>
+                <th>Acertos</th><th>Total Questões</th><th>Data</th><th>Simulado</th><th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for aluno in alunos %}
+            <tr>
+                <td>
+                    <button class="btn btn-link p-0 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detalhes{{ loop.index }}">
+                        {{ aluno.nome }}
+                        <span class="toggle-icon">➕</span>
+                    </button>
+                </td>
+                <td>{{ aluno.cpf }}</td>
+                <td>{{ aluno.email }}</td>
+                <td>{{ aluno.score }}</td>
+                <td>{{ aluno.total_correct }}</td>
+                <td>{{ aluno.total_questions }}</td>
+                <td>{{ aluno.data }}</td>
+                <td>{{ aluno.sheet_name }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('html_bp.delete_resposta', cpf=aluno.cpf, data_iso=aluno.data_iso) }}?turma_id={{ turma_id }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger btn-sm">Excluir Tentativa</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('html_bp.delete_respostas_aluno_turma', turma_id=turma_id, cpf=aluno.cpf) }}" style="display:inline; margin-left:4px;">
+                        <button type="submit" class="btn btn-warning btn-sm">Excluir Todas</button>
+                    </form>
+                </td>
+            </tr>
+            <tr id="detalhes{{ loop.index }}" class="collapse">
+                <td colspan="8">
+                    {% if aluno.results %}
+                        {% for r in aluno.results %}
+                        <div class="border p-2 mb-2">
+                            <p><strong>{{ loop.index }}. {{ r.question_text }}</strong></p>
+                            {% if r.correct %}
+                                <p class="text-success">✔ Acertou — Resposta correta: {{ r.correct_option }} {{ r.correct_option_text }}</p>
+                            {% else %}
+                                <p class="text-danger">✘ Errou — Sua resposta: {{ r.user_option }} {{ r.user_option_text }} <br>
+                                <span class="text-success">Resposta correta: {{ r.correct_option }} {{ r.correct_option_text }}</span></p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">Nenhuma resposta registrada para este aluno.</p>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-warning">Nenhum resultado encontrado para esta turma.</div>
+    {% endif %}
+
+    <a href="{{ url_for('html_bp.professor_dashboard') }}" class="btn btn-secondary">⬅ Voltar ao Painel</a>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(btn => {
+            const icon = btn.querySelector('.toggle-icon');
+            const targetId = btn.getAttribute('data-bs-target');
+            const target = document.querySelector(targetId);
+
+            target.addEventListener('show.bs.collapse', () => {
+                icon.textContent = '➖';
+                target.classList.add('highlight-row');
+            });
+            target.addEventListener('hide.bs.collapse', () => {
+                icon.textContent = '➕';
+                target.classList.remove('highlight-row');
+            });
+        });
+    });
+
+    const scores = {{ alunos|map(attribute='score')|list|tojson }};
+    const nomes = {{ alunos|map(attribute='nome')|list|tojson }};
+
+    if (scores.length > 0) {
+        new Chart(document.getElementById('scoreChart'), {
+            type: 'bar',
+            data: { labels: nomes, datasets: [{ label: 'Pontuação', data: scores, backgroundColor: '#002f66' }] },
+            options: { responsive: true, plugins: { title: { display: true, text: 'Pontuação por Aluno' } }, scales: { y: { beginAtZero: true } } }
+        });
+
+        const bins = [0,5,10,15,20];
+        const dist = bins.map((b,i) => {
+            const next = bins[i+1] || 20;
+            return scores.filter(s => s >= b && s < next).length;
+        });
+
+        new Chart(document.getElementById('distChart'), {
+            type: 'bar',
+            data: { labels: ['0-5','5-10','10-15','15-20'], datasets: [{ label: 'Número de alunos', data: dist, backgroundColor: '#28a745' }] },
+            options: { responsive: true, plugins: { title: { display: true, text: 'Distribuição de Notas' } }, scales: { y: { beginAtZero: true } } }
+        });
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <div style="position:fixed; right:12px; bottom:12px; z-index:9999; background:rgba(17,24,39,.92); color:#fff; padding:8px 12px; border-radius:999px; font-size:.78rem; box-shadow:0 4px 12px rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.14);">
+    © Jonatan da Silva Romao
+  </div>
+  <footer style="background:#111827; color:#f9fafb; margin-top:40px; padding:18px 20px; text-align:center; font-size:.92rem; border-top:3px solid #0d6efd;">
+    <p style="margin:0 0 6px 0;"><strong>© 2026 Jonatan da Silva Romao - Todos os direitos reservados.</strong></p>
+    <p style="margin:0;">Sistema proprietário. É proibida a reprodução, distribuição, cópia, modificação ou uso sem autorização expressa do autor.</p>
+  </footer>
+</body>
+</html>
