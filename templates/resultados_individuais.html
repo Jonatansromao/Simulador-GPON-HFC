@@ -57,7 +57,7 @@
                 <td>{{ aluno.score }}</td>
                 <td>{{ aluno.total_correct }}</td>
                 <td>{{ aluno.total_questions }}</td>
-                <td>{{ aluno.data }}</td>
+                <td><span class="local-datetime" data-iso="{{ aluno.data_iso }}">{{ aluno.data }}</span></td>
                 <td>{{ aluno.sheet_name }}</td>
                 <td>
                     <form method="POST" action="{{ url_for('html_bp.delete_resposta', cpf=aluno.cpf, data_iso=aluno.data_iso) }}" style="display:inline;">
@@ -96,6 +96,15 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.local-datetime').forEach(el => {
+            const iso = el.dataset.iso;
+            if (!iso) return;
+            const dt = new Date(`${iso}Z`);
+            if (!Number.isNaN(dt.getTime())) {
+                el.textContent = dt.toLocaleString('pt-BR');
+            }
+        });
+
         document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(btn => {
             const icon = btn.querySelector('.toggle-icon');
             const targetId = btn.getAttribute('data-bs-target');

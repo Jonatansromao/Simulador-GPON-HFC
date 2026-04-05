@@ -73,7 +73,7 @@
             <tbody>
                 <template v-for="(r, idx) in resultados" :key="idx">
                     <tr>
-                        <td>[[ r.data ]]</td>
+                        <td>[[ formatarData(r.data_iso, r.data) ]]</td>
                         <td>
                             <span :class="r.sheet_name.includes('Livre') ? 'simulado-livre' : 'simulado-turma'">
                                 [[ r.sheet_name.includes('Livre') ? '📘 ' + r.sheet_name : '🎓 ' + r.sheet_name ]]
@@ -140,6 +140,11 @@ createApp({
     methods: {
         toggleExpand(idx) {
             this.expanded[idx] = !this.expanded[idx];
+        },
+        formatarData(dataIso, fallback = '') {
+            if (!dataIso) return fallback;
+            const dt = new Date(`${dataIso}Z`);
+            return Number.isNaN(dt.getTime()) ? fallback : dt.toLocaleString('pt-BR');
         },
         excluirTentativa(turmaId, dataIso) {
             if (!confirm('Deseja realmente excluir esta tentativa?')) {
