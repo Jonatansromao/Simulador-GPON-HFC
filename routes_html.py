@@ -609,41 +609,7 @@ def aluno_historico():
 
     aluno = Aluno.query.get(session["usuario"]["id"])
 
-    # Busca todas as respostas do aluno
-    respostas = Resposta.query.filter_by(aluno_id=aluno.id).order_by(Resposta.data_envio.desc()).all()
-
-    resultados = []
-    for r in respostas:
-        questao = Questao.query.get(r.questao_id) if hasattr(r, "questao_id") else None
-
-        # 🔹 Decide o nome do simulado com base no tipo
-        if r.tipo == "turma":
-            sheet_name = "Simulado de Turma"
-        else:
-            sheet_name = f"Simulado Livre - {r.banco}" if r.banco else "Simulado Livre"
-
-        resultados.append(
-            {
-                "data": r.data_envio.strftime("%d/%m/%Y %H:%M"),
-                "sheet_name": sheet_name,
-                "turma_id": r.turma_id,
-                "total_correct": r.total_correct if hasattr(r, "total_correct") else (1 if r.correta else 0),
-                "total_questions": r.total_questions if hasattr(r, "total_questions") else 1,
-                "score": r.score if hasattr(r, "score") else (1 if r.correta else 0),
-                "results": [
-                    {
-                        "question_text": questao.texto if questao else r.questao,
-                        "user_option": r.resposta,
-                        "user_option_text": r.resposta,  # mostra diretamente o texto escolhido
-                        "correct_option": questao.correta if questao else "",
-                        "correct_option_text": getattr(questao, f"opcao_{questao.correta.lower()}") if questao else "",
-                        "correct": r.correta,
-                    }
-                ],
-            }
-        )
-
-    return render_template("aluno_historico.html", cpf=aluno.cpf, historico=resultados)
+    return render_template("aluno_historico.html", cpf=aluno.cpf, historico=[])
 
 
 # 🔹 Histórico detalhado da turma para o aluno
@@ -992,7 +958,14 @@ def resultados_individuais():
     scores = []
 
     for aluno in alunos:
-        respostas = Resposta.query.filter_by(aluno_id=aluno.id).order_by(Resposta.data_envio.desc()).all()
+        respostas = (
+            Resposta.query.filter(
+                Resposta.aluno_id == aluno.id,
+                Resposta.turma_id.is_(None),
+            )
+            .order_by(Resposta.data_envio.desc())
+            .all()
+        )
         if not respostas:
             continue
 
@@ -1009,7 +982,7 @@ def resultados_individuais():
                     "score": 0,
                     "data": r.data_envio.strftime("%d/%m/%Y %H:%M:%S"),
                     "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
-                    "sheet_name": r.banco or "Simulado Livre",
+                    "sheet_name": f"Simulado Livre - {r.banco}" if r.banco else "Simulado Livre",
                     "results": [],
                 }
 
@@ -1028,12 +1001,12 @@ def resultados_individuais():
             if r.correta:
                 simulados[chave]["total_correct"] += 1
 
-        # 🔹 Calcula nota de 0 a 10
         for s in simulados.values():
             s["score"] = round((s["total_correct"] / s["total_questions"]) * 10, 1) if s["total_questions"] > 0 else 0
             dados_alunos.append(s)
             scores.append(s["score"])
 
+    dados_alunos.sort(key=lambda item: item.get("data_iso", ""), reverse=True)
     media = round(mean(scores), 2) if scores else 0
     melhor = max(scores) if scores else 0
     pior = min(scores) if scores else 0
@@ -1052,50 +1025,57 @@ def turma_result(turma_id):
 
     alunos_data = []
     notas = []
+    respostas = (
+        Resposta.query.filter_by(turma_id=turma.id)
+        .order_by(Resposta.data_envio.desc())
+        .all()
+    )
 
-    for m in turma.matriculas:
-        aluno = m.aluno
-        respostas = Resposta.query.filter_by(aluno_id=aluno.id, turma_id=turma.id).order_by(Resposta.data_envio.desc()).all()
+    simulados = {}
+    for r in respostas:
+        aluno = r.aluno
+        if not aluno:
+            continue
 
-        # 🔹 Agrupar por tentativa usando data/hora
-        simulados = {}
-        for r in respostas:
-            chave = f"{aluno.id}-{r.data_envio.strftime('%Y%m%d%H%M%S')}"
-            if chave not in simulados:
-                simulados[chave] = {
-                    "nome": aluno.nome,
-                    "cpf": getattr(aluno, "cpf", ""),
-                    "email": aluno.email,
-                    "score": 0,
-                    "total_correct": 0,
-                    "total_questions": 0,
-                    "data": r.data_envio.strftime("%d/%m/%Y %H:%M:%S"),
-                    "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
-                    "sheet_name": turma.disciplina,
-                    "results": [],
-                }
+        chave = f"{aluno.id}-{r.data_envio.strftime('%Y%m%d%H%M%S')}"
+        if chave not in simulados:
+            simulados[chave] = {
+                "nome": aluno.nome,
+                "cpf": getattr(aluno, "cpf", ""),
+                "email": aluno.email,
+                "score": 0,
+                "total_correct": 0,
+                "total_questions": 0,
+                "data": r.data_envio.strftime("%d/%m/%Y %H:%M:%S"),
+                "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
+                "sheet_name": turma.sheet_name or turma.disciplina,
+                "results": [],
+            }
 
-            questao = Questao.query.get(r.questao_id)
-            simulados[chave]["results"].append(
-                {
-                    "question_text": questao.texto,
-                    "correct": r.correta,
-                    "correct_option": questao.correta,
-                    "correct_option_text": getattr(questao, f"opcao_{questao.correta.lower()}"),
-                    "user_option": r.resposta,
-                    "user_option_text": getattr(questao, f"opcao_{r.resposta.lower()}") if r.resposta else None,
-                }
-            )
-            simulados[chave]["total_questions"] += 1
-            if r.correta:
-                simulados[chave]["total_correct"] += 1
+        questao = r.questao
+        if not questao:
+            continue
 
-        # 🔹 Calcula nota de 0 a 10
-        for s in simulados.values():
-            s["score"] = round((s["total_correct"] / s["total_questions"]) * 10, 1) if s["total_questions"] > 0 else 0
-            alunos_data.append(s)
-            notas.append(s["score"])
+        simulados[chave]["results"].append(
+            {
+                "question_text": questao.texto,
+                "correct": r.correta,
+                "correct_option": questao.correta,
+                "correct_option_text": getattr(questao, f"opcao_{questao.correta.lower()}", None),
+                "user_option": r.resposta,
+                "user_option_text": getattr(questao, f"opcao_{r.resposta.lower()}", None) if r.resposta else None,
+            }
+        )
+        simulados[chave]["total_questions"] += 1
+        if r.correta:
+            simulados[chave]["total_correct"] += 1
 
+    for s in simulados.values():
+        s["score"] = round((s["total_correct"] / s["total_questions"]) * 10, 1) if s["total_questions"] > 0 else 0
+        alunos_data.append(s)
+        notas.append(s["score"])
+
+    alunos_data.sort(key=lambda item: item.get("data_iso", ""), reverse=True)
     media = round(mean(notas), 2) if notas else 0
     melhor = max(notas) if notas else 0
     pior = min(notas) if notas else 0

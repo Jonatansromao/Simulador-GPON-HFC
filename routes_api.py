@@ -223,43 +223,6 @@ def api_aluno_result(cpf):
     aluno = Aluno.query.filter_by(cpf=cpf).first_or_404()
     resultados = []
 
-    respostas_turma = (
-        Resposta.query.filter_by(aluno_id=aluno.id)
-        .filter(Resposta.turma_id.isnot(None))
-        .order_by(Resposta.data_envio.desc())
-        .all()
-    )
-
-    if respostas_turma:
-        simulados_turma = {}
-        for r in respostas_turma:
-            chave = f"{r.turma_id}-{r.data_envio.strftime('%Y%m%d%H%M%S')}"
-            if chave not in simulados_turma:
-                simulados_turma[chave] = {
-                    "data": r.data_envio.strftime("%d/%m/%Y %H:%M:%S"),
-                    "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
-                    "turma_id": r.turma_id,
-                    "sheet_name": r.turma.sheet_name if r.turma else "Simulado de Turma",
-                    "results": [],
-                    "total_correct": 0,
-                    "total_questions": 0,
-                    "tipo": "turma",
-                    "respostas": []
-                }
-            simulados_turma[chave]["respostas"].append(r)
-
-        for s in simulados_turma.values():
-            results, total_questions, total_correct = build_results_from_respostas(s["respostas"])
-            s["results"] = results
-            s["total_questions"] = total_questions
-            s["total_correct"] = total_correct
-            if s["total_questions"] > 0:
-                s["score"] = round((s["total_correct"] / s["total_questions"]) * 10, 1)
-            else:
-                s["score"] = 0
-            del s["respostas"]  # remove temp
-            resultados.append(s)
-
     simulados_livres = (
         SimuladoLivre.query.filter_by(aluno_id=aluno.id)
         .order_by(SimuladoLivre.data_realizacao.desc())
