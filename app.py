@@ -38,15 +38,19 @@ socketio.init_app(app)
 def ensure_schema_updates():
     inspector = inspect(db.engine)
     tables = set(inspector.get_table_names())
+    dialect_name = db.engine.dialect.name.lower()
+    timestamp_sql = "TIMESTAMP" if "postgres" in dialect_name else "DATETIME"
+
+    def execute_statement(statement: str):
+        db.session.execute(text(statement))
+        db.session.commit()
 
     if "professores" in tables:
         professor_columns = {col["name"] for col in inspector.get_columns("professores")}
         if "invite_code" not in professor_columns:
-            db.session.execute(text("ALTER TABLE professores ADD COLUMN invite_code VARCHAR(30)"))
-            db.session.commit()
+            execute_statement("ALTER TABLE professores ADD COLUMN invite_code VARCHAR(30)")
         try:
-            db.session.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_professores_invite_code ON professores (invite_code)"))
-            db.session.commit()
+            execute_statement("CREATE UNIQUE INDEX IF NOT EXISTS ix_professores_invite_code ON professores (invite_code)")
         except Exception:
             db.session.rollback()
 
@@ -55,20 +59,18 @@ def ensure_schema_updates():
         additions = {
             "empresa": "ALTER TABLE alunos ADD COLUMN empresa VARCHAR(120)",
             "professor_id": "ALTER TABLE alunos ADD COLUMN professor_id INTEGER",
-            "approval_status": "ALTER TABLE alunos ADD COLUMN approval_status VARCHAR(20) DEFAULT 'approved'",
-            "approved_at": "ALTER TABLE alunos ADD COLUMN approved_at DATETIME",
+            "approval_status": "ALTER TABLE alunos ADD COLUMN approval_status VARCHAR(20)",
+            "approved_at": f"ALTER TABLE alunos ADD COLUMN approved_at {timestamp_sql}",
             "invite_code_used": "ALTER TABLE alunos ADD COLUMN invite_code_used VARCHAR(30)",
         }
 
         for column_name, statement in additions.items():
             if column_name not in aluno_columns:
-                db.session.execute(text(statement))
-                db.session.commit()
+                execute_statement(statement)
 
-        db.session.execute(
-            text("UPDATE alunos SET approval_status = 'approved' WHERE approval_status IS NULL OR approval_status = ''")
+        execute_statement(
+            "UPDATE alunos SET approval_status = 'approved' WHERE approval_status IS NULL OR approval_status = ''"
         )
-        db.session.commit()
 
 
 def ensure_question_banks_loaded():
