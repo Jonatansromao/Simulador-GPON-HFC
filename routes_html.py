@@ -218,6 +218,17 @@ def home_alias():
 # -----------------------------
 # Rotas de registro
 # -----------------------------
+ADMIN_EMAILS = {
+    email.strip().lower()
+    for email in os.getenv("ADMIN_EMAILS", "jonatansilvaromao@gmail.com").split(",")
+    if email.strip()
+}
+
+
+def is_admin_email(email: str) -> bool:
+    return bool(email and email.strip().lower() in ADMIN_EMAILS)
+
+
 @html_bp.route("/professor/register", methods=["GET", "POST"])
 def professor_register():
     if request.method == "POST":
@@ -233,7 +244,8 @@ def professor_register():
         # Cria novo professor sem acesso premium
         novo_professor = Professor(nome=nome, email=email)
         novo_professor.set_password(senha)  # usa o método para gerar hash
-        novo_professor.is_premium = False
+        novo_professor.is_admin = is_admin_email(email)
+        novo_professor.is_premium = novo_professor.is_admin
         novo_professor.premium_expires_at = None
         db.session.add(novo_professor)
         db.session.commit()
@@ -791,6 +803,11 @@ def login_professor():
 
         professor = Professor.query.filter_by(email=email).first()
         if professor and professor.check_password(senha):
+            if is_admin_email(professor.email) and not professor.is_admin:
+                professor.is_admin = True
+                professor.is_premium = True
+                db.session.commit()
+
             session["usuario"] = {
                 "tipo": "professor",
                 "id": professor.id,

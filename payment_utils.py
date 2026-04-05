@@ -1,7 +1,11 @@
-import qrcode
 import io
 import base64
 from datetime import datetime
+
+try:
+    import qrcode
+except ImportError:
+    qrcode = None
 
 # CPF do recebedor
 RECEIVER_CPF = "04922924930"
@@ -28,6 +32,7 @@ def _crc16(payload: str) -> str:
 def generate_pix_qrcode(amount: float, description: str = "Assinatura Premium Simulador ETN"):
     """
     Gera um QR code PIX estático com o valor desejado.
+    Se a biblioteca de QR não estiver disponível, retorna apenas o código PIX.
     """
 
     merchant_name = "Jonatan Silva"
@@ -53,6 +58,9 @@ def generate_pix_qrcode(amount: float, description: str = "Assinatura Premium Si
         "6304"
     )
     brcode += _crc16(brcode)
+
+    if qrcode is None:
+        return None, brcode
 
     # Gerar QR code
     qr = qrcode.QRCode(

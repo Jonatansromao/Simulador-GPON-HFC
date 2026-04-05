@@ -18,5 +18,7 @@ services:
         sync: false
       - key: MERCADOPAGO_PUBLIC_KEY
         sync: false
+      - key: ADMIN_EMAILS
+        value: jonatansilvaromao@gmail.com
       - key: FLASK_DEBUG
         value: false
