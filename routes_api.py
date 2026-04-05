@@ -2,8 +2,12 @@ import random
 from flask import Blueprint, request, jsonify, session, redirect, url_for, flash
 from models import db, Professor, Turma, Aluno, Matricula, Questao, Resposta, SimuladoLivre, Payment
 from functools import wraps
-import stripe
 from datetime import datetime, timedelta
+
+try:
+    import stripe
+except ImportError:
+    stripe = None
 
 # Helper to detect if request likely expects JSON (API/AJAX) or HTML (browser navigation)
 def prefers_json():
@@ -484,6 +488,9 @@ def api_sala_espera(turma_id):
 # -----------------------------
 @api_bp.route("/api/webhook/stripe", methods=["POST"])
 def stripe_webhook():
+    if stripe is None:
+        return jsonify({"error": "Integração Stripe indisponível neste ambiente."}), 503
+
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('stripe-signature')
 
@@ -496,11 +503,11 @@ def stripe_webhook():
         import json
         event = json.loads(payload)
 
-    except ValueError as e:
+    except ValueError:
         # Payload inválido
         return jsonify({"error": "Invalid payload"}), 400
-    except stripe.error.SignatureVerificationError as e:
-        # Assinatura inválida
+    except Exception:
+        # Assinatura inválida ou outro erro do Stripe
         return jsonify({"error": "Invalid signature"}), 400
 
     # Processar o evento
