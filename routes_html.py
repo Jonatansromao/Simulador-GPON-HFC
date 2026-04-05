@@ -583,16 +583,18 @@ def sair_turma(turma_id):
 
     matricula = Matricula.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).first()
     if matricula:
-        # O aluno sai apenas da tela/sala, mas continua vinculado à turma.
-        # Isso preserva todo o histórico anterior e permite voltar depois.
-        if turma.status != "Encerrado":
-            matricula.pronto = False
-            db.session.commit()
+        # O aluno realmente sai da turma/sala, mas o histórico de respostas permanece salvo.
+        for resposta in matricula.respostas:
+            resposta.matricula_id = None
+
+        db.session.flush()
+        db.session.delete(matricula)
+        db.session.commit()
 
         payload = emitir_atualizacao_turma(turma)
         return jsonify({
             "status": "ok",
-            "mensagem": "Você saiu da sala, mas permaneceu vinculado à turma e ao histórico.",
+            "mensagem": "Você saiu da turma. Seu histórico anterior foi preservado.",
             **payload,
         })
 

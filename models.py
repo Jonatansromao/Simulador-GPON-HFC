@@ -144,7 +144,7 @@ class Matricula(db.Model):
 
     aluno = db.relationship("Aluno", back_populates="matriculas", lazy=True)
     turma = db.relationship("Turma", back_populates="matriculas", lazy=True)
-    respostas = db.relationship("Resposta", back_populates="matricula", lazy=True, cascade="all, delete-orphan")
+    respostas = db.relationship("Resposta", back_populates="matricula", lazy=True)
 
     def __repr__(self):
         return f"<Matricula aluno={self.aluno_id} turma={self.turma_id}>"
