@@ -36,7 +36,6 @@ from models import (
 )
 import random
 from statistics import mean
-from flask_login import logout_user
 from routes_api import api_login_required_aluno, api_login_required_professor
 from extensions import socketio  # ✅ importa socketio daqui, sem ciclo
 
@@ -335,44 +334,85 @@ def professor_dashboard():
     professor_nome = session["usuario"]["nome"]
 
     if request.method == "POST":
-        modo = request.form.get("modo")
-        nome_turma = request.form.get("turma")
-        disciplina = request.form.get("disciplina")
-        data_str = request.form.get("data")
-        banco = request.form.get("sheet_name")
+        modo = (request.form.get("modo") or "").strip().lower()
+        nome_turma = (request.form.get("turma") or "").strip()
+        disciplina = (request.form.get("disciplina") or "").strip()
+        data_str = (request.form.get("data") or "").strip()
+        banco = (request.form.get("sheet_name") or "").strip().upper()
+
+        if not nome_turma or not disciplina or not data_str or banco not in {"HFC", "GPON"}:
+            flash("Preencha corretamente os dados da turma e escolha um banco válido.", "danger")
+            return redirect(url_for("html_bp.professor_dashboard"))
 
         # Converte a data de string (YYYY-MM-DD) para objeto datetime.date
         from datetime import datetime
 
         try:
-            data_obj = datetime.strptime(data_str, "%Y-%m-%d").date() if data_str else None
+            data_obj = datetime.strptime(data_str, "%Y-%m-%d").date()
         except ValueError:
             flash("Data inválida. Use o formato AAAA-MM-DD.", "danger")
             return redirect(url_for("html_bp.professor_dashboard"))
 
-        turma = Turma(
-            nome=nome_turma,
-            disciplina=disciplina,
-            data=data_obj,
-            professor_id=professor_id,
-            status="Aguardando",
-            sheet_name=banco,
-        )
-        db.session.add(turma)
-        db.session.commit()
+        try:
+            turma = Turma(
+                nome=nome_turma,
+                disciplina=disciplina,
+                data=data_obj,
+                professor_id=professor_id,
+                status="Aguardando",
+                sheet_name=banco,
+            )
+            db.session.add(turma)
+            db.session.flush()
 
-        if modo == "aleatoria":
-            questoes = Questao.query.filter_by(banco=banco).all()
-            selecionadas = random.sample(questoes, min(20, len(questoes)))
-            for q in selecionadas:
-                db.session.add(QuestaoTurma(turma_id=turma.id, questao_id=q.id))
+            if modo == "aleatoria":
+                questoes_selecionadas = (
+                    Questao.query.filter_by(banco=banco)
+                    .order_by(db.func.random())
+                    .limit(20)
+                    .all()
+                )
+                if not questoes_selecionadas:
+                    db.session.rollback()
+                    flash(f"Nenhuma questão encontrada no banco {banco}.", "warning")
+                    return redirect(url_for("html_bp.professor_dashboard"))
 
-        elif modo == "manual":
-            ids = request.form.getlist("questoes")
-            for q_id in ids:
-                db.session.add(QuestaoTurma(turma_id=turma.id, questao_id=int(q_id)))
+            elif modo == "manual":
+                ids = [
+                    int(q_id)
+                    for q_id in request.form.getlist("questoes")
+                    if str(q_id).strip().isdigit()
+                ]
+                if not ids:
+                    db.session.rollback()
+                    flash("Selecione ao menos uma questão para criar a turma manual.", "warning")
+                    return redirect(url_for("html_bp.professor_dashboard"))
 
-        db.session.commit()
+                questoes_selecionadas = Questao.query.filter(
+                    Questao.id.in_(ids),
+                    Questao.banco == banco,
+                ).all()
+                if not questoes_selecionadas:
+                    db.session.rollback()
+                    flash("Não foi possível carregar as questões selecionadas.", "danger")
+                    return redirect(url_for("html_bp.professor_dashboard"))
+            else:
+                db.session.rollback()
+                flash("Modo de criação de turma inválido.", "danger")
+                return redirect(url_for("html_bp.professor_dashboard"))
+
+            turma.questoes.extend(questoes_selecionadas)
+            db.session.commit()
+            flash(
+                f"Turma '{nome_turma}' criada com sucesso com {len(questoes_selecionadas)} questão(ões).",
+                "success",
+            )
+            return redirect(url_for("html_bp.professor_dashboard"))
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("Erro ao criar turma no painel do professor.")
+            flash("Ocorreu um erro interno ao criar a turma. Tente novamente.", "danger")
+            return redirect(url_for("html_bp.professor_dashboard"))
 
     turmas = Turma.query.filter_by(professor_id=professor_id).all()
 
@@ -833,8 +873,9 @@ def login_professor():
 @html_bp.route("/professor/logout")
 @api_login_required_professor
 def professor_logout():
-    logout_user()
-    return redirect(url_for("html_bp.login_professor"))
+    session.pop("usuario", None)
+    flash("Logout realizado com sucesso.", "success")
+    return redirect(url_for("html_bp.home"))
 
 
 @html_bp.route("/logout")

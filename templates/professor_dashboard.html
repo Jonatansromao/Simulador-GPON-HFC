@@ -12,7 +12,6 @@
     </div>
     <div class="text-end">
       <a href="{{ url_for('html_bp.resultados_individuais') }}" class="btn btn-info me-2">📊 Resultados Individuais</a>
-      <a href="{{ url_for('html_bp.professor_logout') }}" class="btn btn-danger">🚪 Logout</a>
     </div>
   </div>
 
@@ -157,8 +156,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
   // Conecta ao servidor Socket.IO (apenas uma vez)
   const socket = io();
@@ -191,11 +188,13 @@ createApp({
       banco: "HFC",
       questoes: [],
       selecionadas: [],
-      loading: false
+      loading: false,
+      cacheQuestoes: {}
     }
   },
   mounted() {
     this.carregarQuestoes();
+    setTimeout(() => this.precarregarBancos(), 300);
 
     // Conecta ao servidor Socket.IO
     const socket = io();
@@ -231,14 +230,34 @@ createApp({
     });
   },
   methods: {
+    precarregarBancos() {
+      ["HFC", "GPON"].forEach((bank) => {
+        if (bank === this.banco || this.cacheQuestoes[bank]) return;
+        fetch("/get_questoes_professor/" + bank)
+          .then(res => res.json())
+          .then(data => {
+            this.cacheQuestoes[bank] = Array.isArray(data) ? data : [];
+          })
+          .catch(err => {
+            console.error(`Erro ao pré-carregar ${bank}:`, err);
+          });
+      });
+    },
     carregarQuestoes() {
+      this.selecionadas = [];
+
+      if (this.cacheQuestoes[this.banco]) {
+        this.questoes = this.cacheQuestoes[this.banco];
+        return;
+      }
+
       this.loading = true;
       fetch("/get_questoes_professor/" + this.banco)
         .then(res => res.json())
         .then(data => {
-          this.questoes = data;
+          this.questoes = Array.isArray(data) ? data : [];
+          this.cacheQuestoes[this.banco] = this.questoes;
           this.loading = false;
-          this.selecionadas = [];
         })
         .catch(err => {
           console.error('Erro ao carregar questões:', err);
