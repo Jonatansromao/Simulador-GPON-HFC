@@ -80,9 +80,15 @@ def cleanup_known_test_students():
         "convite.aluno@example.com",
         "convite.verificacao.aluno@example.com",
         "convite.verificacao2.aluno@example.com",
+        "jonatansilvaromao@gmail.com",
+    }
+    test_cpfs = {
+        "04922924930",
     }
 
-    alunos = Aluno.query.filter(Aluno.email.in_(list(test_emails))).all()
+    alunos = Aluno.query.filter(
+        (Aluno.email.in_(list(test_emails))) | (Aluno.cpf.in_(list(test_cpfs)))
+    ).all()
     if not alunos:
         return
 
