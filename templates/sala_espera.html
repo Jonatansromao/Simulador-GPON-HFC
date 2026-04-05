@@ -59,59 +59,116 @@
 <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
+const turmaId = Number("{{ turma['Turma'] }}");
+
 const app = new Vue({
   el: '#app',
   data: {
     alunos: {{ alunos|tojson }},
     status: "{{ turma['Status']|lower }}",
     sheet_name: "{{ turma['Sheet'] if turma['Sheet'] else '' }}",
-    questoes: {{ turma['Questoes']|tojson if turma['Questoes'] else '[]' }}
+    questoes: {{ turma['Questoes']|tojson if turma['Questoes'] else '[]' }},
+    syncInterval: null,
+    enviandoPronto: false,
+    socket: null
   },
   methods: {
-    ficarPronto() {
-      fetch("/aluno/pronto/{{ turma['Turma'] }}", { method: "POST" })
-        .then(r => r.json())
-        .then(data => {
-          console.log("Aluno marcado como pronto:", data);
-        });
+    aplicarAtualizacao(data) {
+      if (!data || Number(data.id) !== turmaId) return;
+
+      this.alunos = Array.isArray(data.alunos) ? data.alunos : this.alunos;
+      this.status = (data.status || this.status || 'aguardando').toLowerCase();
+      this.redirecionarSeNecessario();
     },
-    sairTurma() {
-      fetch("/sair_turma/{{ turma['Turma'] }}", { method: "POST" })
-        .then(r => r.json())
-        .then(data => {
-          console.log("Aluno saiu da turma:", data);
-          window.location.href = "/aluno/dashboard";
+    async sincronizarSala() {
+      try {
+        const response = await fetch(`/api/sala_espera/${turmaId}`, {
+          headers: { "X-Requested-With": "XMLHttpRequest" }
         });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        this.alunos = Array.isArray(data.alunos) ? data.alunos : [];
+        this.status = (data.status || this.status || 'aguardando').toLowerCase();
+        this.sheet_name = data.sheet_name || this.sheet_name || '';
+        this.questoes = Array.isArray(data.questoes) ? data.questoes : [];
+        this.redirecionarSeNecessario();
+      } catch (error) {
+        console.error('Erro ao sincronizar sala de espera:', error);
+      }
+    },
+    async ficarPronto() {
+      if (this.enviandoPronto) return;
+      this.enviandoPronto = true;
+
+      try {
+        const response = await fetch(`/aluno/pronto/${turmaId}`, {
+          method: "POST",
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        const data = await response.json();
+        this.aplicarAtualizacao(data);
+        await this.sincronizarSala();
+      } catch (error) {
+        console.error('Erro ao marcar aluno como pronto:', error);
+      } finally {
+        this.enviandoPronto = false;
+      }
+    },
+    async sairTurma() {
+      try {
+        const response = await fetch(`/sair_turma/${turmaId}`, {
+          method: "POST",
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        await response.json();
+      } catch (error) {
+        console.error('Erro ao sair da turma:', error);
+      } finally {
+        window.location.href = "/aluno/dashboard";
+      }
+    },
+    redirecionarSeNecessario() {
+      if (this.status === "em andamento") {
+        if (this.questoes && this.questoes.length > 0) {
+          window.location.href = `/start_quiz_manual?turma=${turmaId}`;
+        } else {
+          window.location.href = `/start_quiz?sheet=${this.sheet_name}&turma=${turmaId}`;
+        }
+      } else if (this.status === "encerrado") {
+        window.location.href = "/aluno/dashboard";
+      }
     }
   },
   mounted() {
-    fetch("/aluno_entrar/{{ turma['Turma'] }}", { method: "POST" });
+    this.sincronizarSala();
 
-    const socket = io();
+    fetch(`/aluno_entrar/${turmaId}`, {
+      method: "POST",
+      headers: { "X-Requested-With": "XMLHttpRequest" }
+    })
+      .then(response => response.json())
+      .then(data => this.aplicarAtualizacao(data))
+      .catch(error => console.error('Erro ao entrar na turma:', error));
 
-    socket.on("alunos_prontos_atualizado", (data) => {
-      if (data.id == {{ turma['Turma'] }}) {
-        this.alunos = data.alunos;
-        this.status = data.status.toLowerCase();
-      }
+    this.socket = io({
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 10,
     });
 
-    socket.on("status_turma_atualizado", (data) => {
-      if (data.id == {{ turma['Turma'] }}) {
-        this.alunos = data.alunos;
-        this.status = data.status.toLowerCase();
+    this.socket.on("alunos_prontos_atualizado", (data) => this.aplicarAtualizacao(data));
+    this.socket.on("status_turma_atualizado", (data) => this.aplicarAtualizacao(data));
 
-        if (this.status === "em andamento") {
-          if (this.questoes && this.questoes.length > 0) {
-            window.location.href = "/start_quiz_manual?turma={{ turma['Turma'] }}";
-          } else {
-            window.location.href = "/start_quiz?sheet=" + this.sheet_name + "&turma={{ turma['Turma'] }}";
-          }
-        } else if (this.status === "encerrado") {
-          window.location.href = "/aluno/dashboard";
-        }
-      }
-    });
+    this.syncInterval = window.setInterval(() => this.sincronizarSala(), 3000);
+  },
+  beforeDestroy() {
+    if (this.syncInterval) {
+      window.clearInterval(this.syncInterval);
+    }
+    if (this.socket) {
+      this.socket.close();
+    }
   }
 });
 </script>

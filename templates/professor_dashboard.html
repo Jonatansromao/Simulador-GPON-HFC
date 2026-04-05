@@ -157,25 +157,70 @@
 <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
-  // Conecta ao servidor Socket.IO (apenas uma vez)
-  const socket = io();
+  function renderizarAcoesTurma(data) {
+    let html = `
+      <div class="btn-group btn-group-sm" role="group" aria-label="Ações">
+        <a href="/turma_result/${data.id}" class="btn btn-primary">📊</a>
+        <button class="btn btn-danger" onclick="excluirTurma(${data.id})">🗑</button>
+    `;
 
-  // Atualiza status da turma
-  socket.on("status_turma_atualizado", function(data) {
-    const row = document.querySelector(`#turmas-body tr[data-id="${data.id}"]`);
-    if (row) {
-      row.querySelector("td:nth-child(5)").textContent = data.status;
+    if (data.status === "Aguardando") {
+      html += `<form method="POST" action="/iniciar_quiz/${data.id}" style="display:inline;"><button type="submit" class="btn btn-success">▶</button></form>`;
+    } else if (data.status === "Em andamento") {
+      html += `<form method="POST" action="/encerrar_quiz/${data.id}" style="display:inline;"><button type="submit" class="btn btn-warning">⏹</button></form>`;
+    } else if (data.status === "Encerrado") {
+      html += `<form method="POST" action="/resetar_turma/${data.id}" style="display:inline;"><button type="submit" class="btn btn-secondary">🔄</button></form>`;
     }
+
+    html += `</div>`;
+    return html;
+  }
+
+  function atualizarLinhaTurma(data) {
+    const row = document.querySelector(`#turmas-body tr[data-id="${data.id}"]`);
+    if (!row) return;
+
+    row.querySelector("td:nth-child(5)").textContent = data.status ?? "";
+    row.querySelector("td:nth-child(6)").textContent = data.total ?? 0;
+    row.querySelector("td:nth-child(7)").textContent = data.prontos ?? 0;
+
+    if (data.status) {
+      row.querySelector("td:last-child").innerHTML = renderizarAcoesTurma(data);
+    }
+  }
+
+  async function sincronizarPainelProfessor() {
+    try {
+      const response = await fetch("/api/professor_dashboard", {
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      });
+      if (!response.ok) return;
+
+      const data = await response.json();
+      (data.turmas || []).forEach((turma) => {
+        atualizarLinhaTurma({
+          id: turma.id,
+          status: turma.status,
+          total: turma.alunos,
+          prontos: turma.prontos,
+        });
+      });
+    } catch (error) {
+      console.error("Erro ao sincronizar painel do professor:", error);
+    }
+  }
+
+  const socket = io({
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionAttempts: 10,
   });
 
-  // Atualiza contagem de prontos
-  socket.on("alunos_prontos_atualizado", function(data) {
-    const row = document.querySelector(`#turmas-body tr[data-id="${data.id}"]`);
-    if (row) {
-      row.querySelector("td:nth-child(6)").textContent = data.total;
-      row.querySelector("td:nth-child(7)").textContent = data.prontos;
-    }
-  });
+  socket.on("status_turma_atualizado", atualizarLinhaTurma);
+  socket.on("alunos_prontos_atualizado", atualizarLinhaTurma);
+
+  sincronizarPainelProfessor();
+  window.setInterval(sincronizarPainelProfessor, 3000);
 </script>
 
 <script>
@@ -195,39 +240,6 @@ createApp({
   mounted() {
     this.carregarQuestoes();
     setTimeout(() => this.precarregarBancos(), 300);
-
-    // Conecta ao servidor Socket.IO
-    const socket = io();
-
-    // Escuta evento de atualização de status vindo do backend
-    socket.on("status_turma_atualizado", (data) => {
-      const row = document.querySelector(`#turmas-body tr[data-id="${data.id}"]`);
-      if (row) {
-        // Atualiza célula de status
-        row.querySelector("td:nth-child(5)").textContent = data.status;
-
-        // Atualiza botões conforme novo status
-        const botoesCell = row.querySelector("td:last-child");
-        let html = `
-          <a href="/turma_result/${data.id}" class="btn btn-primary btn-sm">📊 Resultados</a>
-          <button class="btn btn-danger btn-sm" onclick="excluirTurma(${data.id})">🗑 Excluir</button>
-        `;
-        if (data.status === "Aguardando") {
-          html += `<form method="POST" action="/iniciar_quiz/${data.id}" style="display:inline;">
-                     <button type="submit" class="btn btn-success btn-sm">▶ Iniciar Quiz</button>
-                   </form>`;
-        } else if (data.status === "Em andamento") {
-          html += `<form method="POST" action="/encerrar_quiz/${data.id}" style="display:inline;">
-                     <button type="submit" class="btn btn-warning btn-sm">⏹ Encerrar Quiz</button>
-                   </form>`;
-        } else if (data.status === "Encerrado") {
-          html += `<form method="POST" action="/resetar_turma/${data.id}" style="display:inline;">
-                     <button type="submit" class="btn btn-secondary btn-sm">🔄 Reiniciar Turma</button>
-                   </form>`;
-        }
-        botoesCell.innerHTML = html;
-      }
-    });
   },
   methods: {
     precarregarBancos() {

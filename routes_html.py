@@ -188,19 +188,32 @@ def premium_required(f):
 
 
 # -----------------------------
-# Função utilitária aqui dentro
+# Funções utilitárias de atualização em tempo real
+# -----------------------------
+def build_turma_realtime_payload(turma):
+    alunos_data = [{"nome": m.aluno.nome, "pronto": bool(m.pronto)} for m in turma.matriculas]
+    return {
+        "id": turma.id,
+        "status": turma.status,
+        "prontos": sum(1 for m in turma.matriculas if m.pronto),
+        "total": len(turma.matriculas),
+        "alunos": alunos_data,
+    }
+
+
+def emitir_atualizacao_turma(turma):
+    payload = build_turma_realtime_payload(turma)
+    socketio.emit("status_turma_atualizado", payload)
+    socketio.emit("alunos_prontos_atualizado", payload)
+    return payload
+
+
 def atualizar_status_turma(turma_id, novo_status):
     turma = Turma.query.get(turma_id)
     if turma:
         turma.status = novo_status
         db.session.commit()
-        socketio.emit(
-            "status_turma_atualizado",
-            {
-                "id": turma_id,
-                "status": turma.status,
-            },
-        )
+        emitir_atualizacao_turma(turma)
 
 
 @html_bp.route("/")
@@ -504,29 +517,16 @@ def simulado_gpon():
 def aluno_pronto(turma_id):
     aluno_id = session["usuario"]["id"]
     matricula = Matricula.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).first()
-    if matricula:
-        matricula.pronto = True
-        db.session.commit()
+    if not matricula:
+        return jsonify({"status": "erro", "mensagem": "Matrícula não encontrada para esta turma."}), 404
 
-        turma = Turma.query.get(turma_id)
-        prontos = sum(1 for m in turma.matriculas if m.pronto)
-        total = len(turma.matriculas)
+    matricula.pronto = True
+    db.session.commit()
 
-        alunos_data = [{"nome": m.aluno.nome, "pronto": m.pronto} for m in turma.matriculas]
+    turma = Turma.query.get_or_404(turma_id)
+    payload = emitir_atualizacao_turma(turma)
 
-        socketio.emit(
-            "alunos_prontos_atualizado",
-            {
-                "id": turma.id,
-                "prontos": prontos,
-                "total": total,
-                "alunos": alunos_data,
-                "status": turma.status,
-            },
-        )
-
-    # 🔹 Agora retorna JSON em vez de redirect
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", **payload})
 
 
 # 🔹 Rota alternativa para entrar na turma via AJAX (sem redirecionar)
@@ -541,22 +541,10 @@ def aluno_entrar(turma_id):
         db.session.add(matricula)
         db.session.commit()
 
-    turma = Turma.query.get(turma_id)
+    turma = Turma.query.get_or_404(turma_id)
+    payload = emitir_atualizacao_turma(turma)
 
-    alunos_data = [{"nome": m.aluno.nome, "pronto": m.pronto} for m in turma.matriculas]
-
-    socketio.emit(
-        "alunos_prontos_atualizado",
-        {
-            "id": turma.id,
-            "prontos": sum(1 for m in turma.matriculas if m.pronto),
-            "total": len(turma.matriculas),
-            "alunos": alunos_data,
-            "status": turma.status,
-        },
-    )
-
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", **payload})
 
 
 # 🔹 Sala de espera para o aluno
@@ -604,22 +592,10 @@ def sair_turma(turma_id):
         db.session.delete(matricula)
         db.session.commit()
 
-        turma = Turma.query.get(turma_id)
+        turma = Turma.query.get_or_404(turma_id)
+        payload = emitir_atualizacao_turma(turma)
+        return jsonify({"status": "ok", **payload})
 
-        alunos_data = [{"nome": m.aluno.nome, "pronto": m.pronto} for m in turma.matriculas]
-
-        socketio.emit(
-            "alunos_prontos_atualizado",
-            {
-                "id": turma.id,
-                "prontos": sum(1 for m in turma.matriculas if m.pronto),
-                "total": len(turma.matriculas),
-                "alunos": alunos_data,
-                "status": turma.status,
-            },
-        )
-
-    # 🔹 Agora retorna JSON em vez de redirect
     return jsonify({"status": "ok"})
 
 
