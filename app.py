@@ -1,4 +1,5 @@
 import os
+import csv
 from flask import Flask
 from flask_migrate import Migrate
 from dotenv import load_dotenv
@@ -32,8 +33,51 @@ db.init_app(app)
 migrate = Migrate(app, db)
 socketio.init_app(app)
 
+
+def ensure_question_banks_loaded():
+    from models import Questao
+
+    bank_files = {
+        "GPON": "GPON.csv",
+        "HFC": "HFC.csv",
+    }
+
+    for banco, filename in bank_files.items():
+        if Questao.query.filter_by(banco=banco).count() > 0:
+            continue
+
+        csv_path = os.path.join(base_dir, filename)
+        if not os.path.exists(csv_path):
+            print(f"Arquivo {filename} não encontrado para importar {banco}.")
+            continue
+
+        added = 0
+        with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                texto = (row.get("Pergunta") or "").strip()
+                if not texto:
+                    continue
+                q = Questao(
+                    texto=texto,
+                    opcao_a=(row.get("A") or "").strip() or None,
+                    opcao_b=(row.get("B") or "").strip() or None,
+                    opcao_c=(row.get("C") or "").strip() or None,
+                    opcao_d=(row.get("D") or "").strip() or None,
+                    correta=(row.get("Correta") or "").strip() or None,
+                    imagem=(row.get("Imagem") or "").strip() or None,
+                    banco=banco,
+                )
+                db.session.add(q)
+                added += 1
+
+        db.session.commit()
+        print(f"Banco {banco} carregado com {added} questões.")
+
+
 with app.app_context():
     db.create_all()
+    ensure_question_banks_loaded()
 
 app.register_blueprint(html_bp)
 app.register_blueprint(api_bp)
