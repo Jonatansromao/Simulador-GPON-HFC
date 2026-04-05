@@ -73,6 +73,29 @@ def ensure_schema_updates():
         )
 
 
+def cleanup_known_test_students():
+    from models import Aluno, Matricula, Resposta, SimuladoLivre
+
+    test_emails = {
+        "convite.aluno@example.com",
+        "convite.verificacao.aluno@example.com",
+        "convite.verificacao2.aluno@example.com",
+    }
+
+    alunos = Aluno.query.filter(Aluno.email.in_(list(test_emails))).all()
+    if not alunos:
+        return
+
+    for aluno in alunos:
+        Resposta.query.filter_by(aluno_id=aluno.id).delete(synchronize_session=False)
+        SimuladoLivre.query.filter_by(aluno_id=aluno.id).delete(synchronize_session=False)
+        Matricula.query.filter_by(aluno_id=aluno.id).delete(synchronize_session=False)
+        db.session.delete(aluno)
+
+    db.session.commit()
+    print(f"Limpeza automática: {len(alunos)} aluno(s) de teste removido(s).")
+
+
 def ensure_question_banks_loaded():
     from models import Questao
 
@@ -117,6 +140,7 @@ def ensure_question_banks_loaded():
 with app.app_context():
     db.create_all()
     ensure_schema_updates()
+    cleanup_known_test_students()
     ensure_question_banks_loaded()
 
 app.register_blueprint(html_bp)
