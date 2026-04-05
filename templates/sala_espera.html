@@ -33,9 +33,9 @@
     ✅ Estou Pronto
   </button>
 
-  <!-- Botão para sair da turma -->
+  <!-- Botão para sair da sala -->
   <button @click="sairTurma" class="btn btn-danger mt-2">
-    🚪 Sair da Turma
+    🚪 Sair da Sala
   </button>
 
   <!-- Botão para ver histórico da turma -->
@@ -52,7 +52,7 @@
     O professor iniciou! Você será redirecionado...
   </div>
   <div class="alert alert-danger mt-4" v-if="status === 'encerrado'">
-    O professor encerrou a turma. Obrigado pela participação!
+    O professor encerrou a turma. Você pode permanecer nesta sala e consultar seu histórico normalmente.
   </div>
 </div>
 
@@ -135,8 +135,6 @@ const app = new Vue({
         } else {
           window.location.href = `/start_quiz?sheet=${this.sheet_name}&turma=${turmaId}`;
         }
-      } else if (this.status === "encerrado") {
-        window.location.href = "/aluno/dashboard";
       }
     }
   },

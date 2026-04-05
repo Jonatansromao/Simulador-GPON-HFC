@@ -582,19 +582,18 @@ def sair_turma(turma_id):
 
     matricula = Matricula.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).first()
     if matricula:
-        # Preserva histórico de respostas mesmo quando o aluno sai da turma.
-        for resposta in matricula.respostas:
-            resposta.matricula_id = None
-
-        # Valida que não há exclusão em cascata automática das respostas.
-        db.session.flush()
-
-        db.session.delete(matricula)
+        # O aluno sai apenas da tela/sala, mas continua matriculado.
+        # Isso preserva o histórico e permite retornar depois, mesmo com a turma encerrada.
+        matricula.pronto = False
         db.session.commit()
 
         turma = Turma.query.get_or_404(turma_id)
         payload = emitir_atualizacao_turma(turma)
-        return jsonify({"status": "ok", **payload})
+        return jsonify({
+            "status": "ok",
+            "mensagem": "Você saiu da sala, mas continua matriculado na turma.",
+            **payload,
+        })
 
     return jsonify({"status": "ok"})
 
@@ -1199,8 +1198,8 @@ def submit_answers(turma_id):
         turma.status = "Encerrado"
         db.session.commit()
 
-    # 🔹 Notifica os professores conectados que a turma foi encerrada
-    socketio.emit("status_turma_atualizado", {"id": turma.id, "status": turma.status})
+    # 🔹 Notifica em tempo real com payload completo
+    emitir_atualizacao_turma(turma)
 
     # 🔹 Renderiza resultado final do quiz
     return render_template("quiz_result.html", aluno=aluno, total=total, total_correct=total_correct, nota=nota, results=resultados, turma=turma)
