@@ -487,11 +487,15 @@ def professor_dashboard():
     subscription_status = "Free"
     expires_at = None
     solicitacoes_pendentes = []
+    alunos_vinculados = []
     total_alunos_aprovados = 0
     if professor:
         solicitacoes_pendentes = Aluno.query.filter_by(
             professor_id=professor.id,
             approval_status="pending",
+        ).order_by(Aluno.nome.asc()).all()
+        alunos_vinculados = Aluno.query.filter_by(
+            professor_id=professor.id,
         ).order_by(Aluno.nome.asc()).all()
         total_alunos_aprovados = Aluno.query.filter(
             Aluno.professor_id == professor.id,
@@ -513,6 +517,7 @@ def professor_dashboard():
         expires_at=expires_at,
         invite_code=invite_code,
         solicitacoes_pendentes=solicitacoes_pendentes,
+        alunos_vinculados=alunos_vinculados,
         total_alunos_aprovados=total_alunos_aprovados,
     )
 
@@ -952,6 +957,56 @@ def professor_recusar_aluno(aluno_id):
     aluno.approved_at = None
     db.session.commit()
     flash(f"Aluno {aluno.nome} recusado.", "info")
+    return redirect(url_for("html_bp.professor_dashboard"))
+
+
+@html_bp.route("/professor/alunos/<int:aluno_id>/resetar_senha", methods=["POST"])
+@api_login_required_professor
+def professor_resetar_senha_aluno(aluno_id):
+    aluno = Aluno.query.filter_by(id=aluno_id, professor_id=session["usuario"]["id"]).first()
+    if not aluno:
+        flash("Aluno vinculado não encontrado.", "danger")
+        return redirect(url_for("html_bp.professor_dashboard"))
+
+    try:
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        temporary_password = "ETN-" + "".join(secrets.choice(alphabet) for _ in range(6))
+        aluno.set_password(temporary_password)
+        db.session.commit()
+        flash(
+            f"Senha temporária de {aluno.nome}: {temporary_password}. Oriente o aluno a alterá-la após entrar no sistema.",
+            "warning",
+        )
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Erro ao redefinir senha do aluno pelo professor.")
+        flash("Não foi possível redefinir a senha do aluno agora.", "danger")
+
+    return redirect(url_for("html_bp.professor_dashboard"))
+
+
+@html_bp.route("/professor/alunos/<int:aluno_id>/remover", methods=["POST"])
+@api_login_required_professor
+def professor_remover_aluno(aluno_id):
+    aluno = Aluno.query.filter_by(id=aluno_id, professor_id=session["usuario"]["id"]).first()
+    if not aluno:
+        flash("Aluno vinculado não encontrado.", "danger")
+        return redirect(url_for("html_bp.professor_dashboard"))
+
+    try:
+        nome_aluno = aluno.nome
+        PasswordReset.query.filter_by(user_type="aluno", user_id=aluno.id).delete(synchronize_session=False)
+        Resposta.query.filter_by(aluno_id=aluno.id).delete(synchronize_session=False)
+        SimuladoLivre.query.filter_by(aluno_id=aluno.id).delete(synchronize_session=False)
+        Matricula.query.filter_by(aluno_id=aluno.id).delete(synchronize_session=False)
+        db.session.delete(aluno)
+        db.session.commit()
+        flash(f"Aluno {nome_aluno} removido com sucesso.", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Erro ao remover aluno vinculado ao professor.")
+        flash("Não foi possível remover o aluno agora.", "danger")
+
     return redirect(url_for("html_bp.professor_dashboard"))
 
 

@@ -83,6 +83,70 @@
     </div>
   </div>
 
+  <div class="card shadow p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="mb-0">👥 Alunos vinculados</h4>
+      <span class="badge bg-secondary">{{ alunos_vinculados|length }} aluno(s)</span>
+    </div>
+
+    {% if alunos_vinculados %}
+      <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle mb-2">
+          <thead class="table-light">
+            <tr>
+              <th>Aluno</th>
+              <th>Empresa</th>
+              <th>Status</th>
+              <th>Aprovado em</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for aluno in alunos_vinculados %}
+              <tr>
+                <td>
+                  <strong>{{ aluno.nome }}</strong><br>
+                  <small class="text-muted">{{ aluno.email }}</small><br>
+                  <small class="text-muted">CPF: {{ aluno.cpf }}</small>
+                </td>
+                <td>{{ aluno.empresa or '—' }}</td>
+                <td>
+                  {% if aluno.approval_status == 'approved' or not aluno.approval_status %}
+                    <span class="badge bg-success">Aprovado</span>
+                  {% elif aluno.approval_status == 'rejected' %}
+                    <span class="badge bg-danger">Recusado</span>
+                  {% else %}
+                    <span class="badge bg-warning text-dark">Pendente</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if aluno.approved_at %}
+                    {{ aluno.approved_at.strftime("%d/%m/%Y %H:%M") }}
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="d-flex flex-wrap gap-1">
+                    <form method="POST" action="{{ url_for('html_bp.professor_resetar_senha_aluno', aluno_id=aluno.id) }}">
+                      <button type="submit" class="btn btn-outline-primary btn-sm">🔑 Nova senha</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('html_bp.professor_remover_aluno', aluno_id=aluno.id) }}" onsubmit="return confirm('Tem certeza que deseja descadastrar este aluno?');">
+                      <button type="submit" class="btn btn-outline-danger btn-sm">🗑 Remover</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <small class="text-muted">Você pode gerar uma senha temporária para o aluno ou remover o cadastro dele deste professor.</small>
+    {% else %}
+      <p class="text-muted mb-0">Nenhum aluno vinculado a este professor até o momento.</p>
+    {% endif %}
+  </div>
+
   <!-- Cadastro de Turma -->
   <div class="card shadow p-4">
     <h4>Cadastro de Turma</h4>
