@@ -44,6 +44,7 @@
                             </div>
                         </div>
 
+
                         <!-- Abas de Pagamento -->
                         <ul class="nav nav-tabs" role="tablist">
                             <li class="nav-item" role="presentation">
@@ -104,9 +105,7 @@
                                     <div class="col-md-6">
                                         <h5>🔑 Dados do Recebedor</h5>
                                         <div class="alert alert-light border">
-                                            <p><strong>Titular:</strong> {{ pix_data.holder }}</p>
-                                            <p><strong>CPF:</strong> {{ pix_data.cpf }}</p>
-                                            <p><strong>Banco:</strong> {{ pix_data.bank }}</p>
+                                            <p><strong>Recebedor:</strong> {{ pix_data.holder }}</p>
                                             <p><strong>Valor:</strong> R$ {{ "%.2f"|format(pix_data.amount) }}</p>
                                             <p><strong>Descrição:</strong> {{ pix_data.description }}</p>
                                         </div>
@@ -148,26 +147,22 @@
                                         <h5>💳 Pagamento com Cartão</h5>
                                         <p class="text-muted">Use o mesmo checkout do Mercado Pago para pagar com cartão.</p>
 
-                                        {% if pix_payment_url %}
-                                            <div class="text-center mb-3">
-                                                <a href="{{ pix_payment_url }}" target="_blank" class="btn btn-primary btn-lg">
-                                                    💳 Pagar com Cartão via Mercado Pago
-                                                </a>
-                                            </div>
-                                            <p class="text-muted"><small>Escolha cartão no checkout do Mercado Pago.</small></p>
-                                            <div class="alert alert-warning text-start mt-3">
-                                                <strong>Importante para teste:</strong>
-                                                <ul class="mb-0 mt-2">
-                                                    <li>abra o link em <strong>janela anônima</strong> ou saia da conta vendedora do Mercado Pago;</li>
-                                                    <li>use <strong>outra conta/comprador</strong> para testar;</li>
-                                                    <li>se estiver logado na mesma conta recebedora, o botão <strong>Pagar</strong> pode ficar cinza.</li>
-                                                </ul>
-                                            </div>
-                                        {% else %}
-                                            <div class="alert alert-warning">
-                                                <p>O checkout do Mercado Pago não está disponível no momento. Use o QR code manual ou configure Mercado Pago.</p>
-                                            </div>
-                                        {% endif %}
+                                        <div class="text-center mb-3">
+                                            <form method="POST" action="{{ url_for('html_bp.professor_pagar_cartao') }}">
+                                                <button type="submit" class="btn btn-primary btn-lg">
+                                                    💳 Assinar com cartão via Mercado Pago
+                                                </button>
+                                            </form>
+                                        </div>
+                                        <p class="text-muted"><small>Cada clique no botão acima cria um checkout novo no Mercado Pago.</small></p>
+                                        <div class="alert alert-info text-start mt-3">
+                                            <strong>Instruções de pagamento:</strong>
+                                            <ul class="mb-0 mt-2">
+                                                <li>clique em <strong>Assinar com cartão via Mercado Pago</strong> para abrir o checkout seguro;</li>
+                                                <li>preencha os dados do cartão e confirme o pagamento no ambiente do Mercado Pago;</li>
+                                                <li>após a aprovação, sua assinatura premium será ativada automaticamente.</li>
+                                            </ul>
+                                        </div>
 
                                         <div class="alert alert-info mt-3">
                                             <h6>🛡️ Segurança:</h6>

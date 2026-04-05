@@ -35,7 +35,7 @@ def generate_pix_qrcode(amount: float, description: str = "Assinatura Premium Si
     Se a biblioteca de QR não estiver disponível, retorna apenas o código PIX.
     """
 
-    merchant_name = "Jonatan Silva"
+    merchant_name = "Lais R Batista"
     merchant_city = "SAO PAULO"
     txid = "***"
 
@@ -86,7 +86,7 @@ def get_pix_display_data():
     """Retorna informações para exibição do PIX."""
     return {
         "cpf": RECEIVER_CPF,
-        "holder": "Jonatan Silva",
+        "holder": "Lais Romao Batista",
         "bank": "Itaú",
         "amount": 250.00,
         "description": "Assinatura Premium Simulador ETN"

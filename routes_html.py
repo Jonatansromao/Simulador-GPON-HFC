@@ -1557,13 +1557,12 @@ def professor_premium():
             expires_at = "Vitalício"
         elif is_active:
             subscription_status = "Premium"
-    
+
     # Gerar PIX QR code (fallback)
     qr_code, pix_code = generate_pix_qrcode(250.00)
     pix_data = get_pix_display_data()
 
-    # Tentar criar PIX direto no Mercado Pago + checkout para cartão
-    pix_payment_url = None
+    # Tentar criar PIX direto no Mercado Pago
     pix_payment_id = None
     pix_ticket_url = None
     mercadopago_error_message = None
@@ -1600,12 +1599,6 @@ def professor_premium():
                 else:
                     mercadopago_error_message = pix_result.get("error")
 
-                # Mantém checkout externo apenas para cartão
-                pix_payment_url, checkout_reference = MercadoPagoGateway.criar_preferencia(
-                    professor.id, professor.email, 250.00, mp_payment.id
-                )
-                if not pix_payment_url and not mercadopago_error_message:
-                    mercadopago_error_message = checkout_reference
             else:
                 mercadopago_error_message = (
                     "Mercado Pago não está configurado. Defina MERCADOPAGO_ACCESS_TOKEN."
@@ -1633,11 +1626,10 @@ def professor_premium():
         qr_code=qr_code,
         pix_code=pix_code,
         pix_data=pix_data,
-        pix_payment_url=pix_payment_url,
         pix_payment_id=pix_payment_id,
         pix_ticket_url=pix_ticket_url,
         mercadopago_error_message=mercadopago_error_message,
-        pending_payment=pending_payment
+        pending_payment=pending_payment,
     )
 
 
@@ -1769,45 +1761,50 @@ def mercadopago_webhook():
 @html_bp.route("/professor/pagar_cartao", methods=["POST"])
 @api_login_required_professor
 def professor_pagar_cartao():
-    """
-    Processa pagamento real via Stripe.
-    O token é gerado seguramente pelo Stripe.js no frontend.
-    """
-    from stripe_gateway import StripeGateway
-    
+    """Gera um novo checkout do Mercado Pago para pagamento com cartão a cada clique."""
+    from mercadopago_gateway import MercadoPagoGateway
+
     professor = Professor.query.get(session["usuario"]["id"])
     if not professor:
         flash("Professor não encontrado.", "danger")
         return redirect(url_for("html_bp.professor_premium"))
-    
-    # Receber token do Stripe.js
-    stripe_token = request.form.get("stripeToken")
-    if not stripe_token:
-        flash("Erro: Token de pagamento não fornecido.", "danger")
+
+    if not MercadoPagoGateway.is_configured():
+        flash("Mercado Pago não está configurado. Defina MERCADOPAGO_ACCESS_TOKEN.", "danger")
         return redirect(url_for("html_bp.professor_premium"))
-    
-    # Processar pagamento com Stripe
-    result = StripeGateway.processar_token_cartao(
-        stripe_token,
-        professor.email,
-        professor.id,
-        valor=250.00
-    )
-    
-    if result["success"] and result["paid"]:
-        # Pagamento confirmado - ativar premium
-        if professor.premium_expires_at and professor.premium_expires_at > datetime.utcnow():
-            professor.premium_expires_at = professor.premium_expires_at + timedelta(days=30)
-        else:
-            professor.premium_expires_at = datetime.utcnow() + timedelta(days=30)
-        
-        professor.is_premium = True
+
+    try:
+        mp_payment = Payment(
+            professor_id=professor.id,
+            method="mercadopago",
+            amount=250.00,
+            status="pending",
+            description="Checkout Mercado Pago para assinatura premium",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.session.add(mp_payment)
         db.session.commit()
-        
-        flash("✅ Pagamento realizado com sucesso! Assinatura premium ativada por 30 dias.", "success")
-        return redirect(url_for("html_bp.professor_dashboard"))
-    else:
-        flash(f"❌ Erro no pagamento: {result['error']}", "danger")
+
+        checkout_url, checkout_reference = MercadoPagoGateway.criar_preferencia(
+            professor.id,
+            professor.email,
+            250.00,
+            mp_payment.id,
+        )
+
+        if not checkout_url:
+            db.session.delete(mp_payment)
+            db.session.commit()
+            flash(f"Não foi possível gerar um novo checkout agora. {checkout_reference}", "danger")
+            return redirect(url_for("html_bp.professor_premium"))
+
+        mp_payment.external_ref = str(checkout_reference)
+        db.session.commit()
+        return redirect(checkout_url)
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Erro ao gerar novo checkout Mercado Pago: {e}", "danger")
         return redirect(url_for("html_bp.professor_premium"))
 
 
