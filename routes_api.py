@@ -233,10 +233,11 @@ def api_aluno_result(cpf):
     if respostas_turma:
         simulados_turma = {}
         for r in respostas_turma:
-            chave = f"{r.turma_id}-{r.data_envio.strftime('%Y%m%d%H%M')}"
+            chave = f"{r.turma_id}-{r.data_envio.strftime('%Y%m%d%H%M%S')}"
             if chave not in simulados_turma:
                 simulados_turma[chave] = {
-                    "data": r.data_envio.strftime("%d/%m/%Y %H:%M"),
+                    "data": r.data_envio.strftime("%d/%m/%Y %H:%M:%S"),
+                    "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
                     "turma_id": r.turma_id,
                     "sheet_name": r.turma.sheet_name if r.turma else "Simulado de Turma",
                     "results": [],
@@ -266,8 +267,17 @@ def api_aluno_result(cpf):
     )
 
     for sl in simulados_livres:
+        inicio_tentativa = sl.data_realizacao.replace(microsecond=0)
+        fim_tentativa = inicio_tentativa + timedelta(seconds=1)
+
         respostas_livres = (
-            Resposta.query.filter_by(aluno_id=aluno.id, banco=sl.banco)
+            Resposta.query.filter(
+                Resposta.aluno_id == aluno.id,
+                Resposta.banco == sl.banco,
+                Resposta.turma_id.is_(None),
+                Resposta.data_envio >= inicio_tentativa,
+                Resposta.data_envio < fim_tentativa,
+            )
             .order_by(Resposta.data_envio.desc())
             .all()
         )
@@ -277,7 +287,8 @@ def api_aluno_result(cpf):
         nota = round((total_correct / total_questions) * 10, 1) if total_questions > 0 else 0
 
         resultados.append({
-            "data": sl.data_realizacao.strftime("%d/%m/%Y %H:%M"),
+            "data": inicio_tentativa.strftime("%d/%m/%Y %H:%M:%S"),
+            "data_iso": inicio_tentativa.strftime("%Y-%m-%dT%H:%M:%S"),
             "turma_id": None,
             "sheet_name": f"Simulado Livre - {sl.banco}",
             "total_correct": total_correct,
@@ -287,7 +298,7 @@ def api_aluno_result(cpf):
             "tipo": "livre",
         })
 
-    resultados.sort(key=lambda x: x["data"], reverse=True)
+    resultados.sort(key=lambda x: x.get("data_iso", ""), reverse=True)
 
     return jsonify({"resultados": resultados})
 
@@ -310,7 +321,8 @@ def api_aluno_result_turma(turma_id):
         chave = f"{r.turma_id}-{r.data_envio.strftime('%Y%m%d%H%M%S')}"
         if chave not in simulados_turma:
             simulados_turma[chave] = {
-                "data": r.data_envio.strftime("%d/%m/%Y %H:%M"),
+                "data": r.data_envio.strftime("%d/%m/%Y %H:%M:%S"),
+                "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
                 "turma_id": turma_id,
                 "sheet_name": r.turma.sheet_name if r.turma else "Simulado de Turma",
                 "results": [],

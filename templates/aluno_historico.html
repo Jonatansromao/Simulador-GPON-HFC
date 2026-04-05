@@ -91,7 +91,7 @@
                             </button>
                         </td>
                         <td>
-                            <button class="btn btn-danger btn-sm" @click.prevent="excluirTentativa(r.turma_id, r.data)">Excluir</button>
+                            <button class="btn btn-danger btn-sm" @click.prevent="excluirTentativa(r.turma_id, r.data_iso)">Excluir</button>
                         </td>
                     </tr>
                     <tr :id="'detalhes'+idx" class="collapse">
@@ -141,14 +141,10 @@ createApp({
         toggleExpand(idx) {
             this.expanded[idx] = !this.expanded[idx];
         },
-        excluirTentativa(turmaId, data) {
+        excluirTentativa(turmaId, dataIso) {
             if (!confirm('Deseja realmente excluir esta tentativa?')) {
                 return;
             }
-
-            const [dia, mes, anoEHora] = data.split('/');
-            const [ano, hora] = [anoEHora.split(' ')[0], anoEHora.split(' ')[1]];
-            const dataIso = `${ano}-${mes}-${dia}T${hora}:00`;
 
             fetch('/aluno/excluir_tentativa', {
                 method: 'POST',

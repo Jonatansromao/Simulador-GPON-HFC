@@ -1148,6 +1148,8 @@ def submit_answers(turma_id):
         flash("Você não está matriculado nesta turma.", "danger")
         return redirect(url_for("html_bp.aluno_dashboard"))
 
+    attempt_time = datetime.utcnow().replace(microsecond=0)
+
     resultados = []
     for questao_id, resposta_dada in answers.items():
         questao = Questao.query.get(int(questao_id))
@@ -1165,7 +1167,7 @@ def submit_answers(turma_id):
             correta=correta,
             banco=None,
             tipo="turma",
-            data_envio=datetime.utcnow(),
+            data_envio=attempt_time,
         )
         db.session.add(nova_resposta)
 
@@ -1251,6 +1253,8 @@ def submit_answers_free():
     answers = data.get("answers", {})
     banco = data.get("banco")  # "HFC" ou "GPON"
 
+    attempt_time = datetime.utcnow().replace(microsecond=0)
+
     resultados = []
     total_correct = 0
 
@@ -1272,7 +1276,7 @@ def submit_answers_free():
             correta=correta,
             banco=banco,
             tipo="livre",  # 🔹 marca como simulado livre
-            data_envio=datetime.utcnow(),
+            data_envio=attempt_time,
         )
         db.session.add(nova_resposta)
 
@@ -1297,7 +1301,13 @@ def submit_answers_free():
     pontuacao_obtida = total_correct * valor_por_questao
     pontuacao_percentual = (pontuacao_obtida / pontuacao_total) * 100 if total > 0 else 0
 
-    novo_simulado = SimuladoLivre(aluno_id=aluno_id, banco=banco, pontuacao=pontuacao_obtida, acertos=total_correct)
+    novo_simulado = SimuladoLivre(
+        aluno_id=aluno_id,
+        banco=banco,
+        pontuacao=pontuacao_obtida,
+        acertos=total_correct,
+        data_realizacao=attempt_time,
+    )
     db.session.add(novo_simulado)
 
     db.session.commit()
@@ -1386,7 +1396,7 @@ def delete_resposta(cpf, data_iso):
             data_dt = datetime.strptime(data_iso, "%Y-%m-%dT%H:%M")
 
         data_inicio = data_dt
-        data_fim = data_dt + timedelta(seconds=59, microseconds=999999)
+        data_fim = data_dt + timedelta(seconds=1)
 
         turma_id = request.args.get("turma_id", type=int)
 
