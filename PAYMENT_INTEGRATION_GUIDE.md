@@ -1,4 +1,4 @@
-# Implementação de Pagamentos - Simulador ETN
+# Implementação de Pagamentos - Simulador HFC/GPON
 
 ## PIX - Implementado ✅
 
@@ -118,7 +118,7 @@ class MercadoPagoGateway:
         preference_data = {
             "items": [
                 {
-                    "title": "Assinatura Premium Simulador ETN",
+                    "title": "Assinatura Premium Simulador HFC/GPON",
                     "quantity": 1,
                     "unit_price": valor
                 }

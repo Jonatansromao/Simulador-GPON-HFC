@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block titulo %}Assinatura Premium - Simulador ETN{% endblock %}
+{% block titulo %}Assinatura Premium - Simulador HFC/GPON{% endblock %}
 
 {% block conteudo %}
 <div class="container mt-5">
@@ -8,7 +8,7 @@
         <div class="col-md-10">
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
-                    <h3 class="card-title mb-0">💳 Assinatura Premium - Simulador ETN</h3>
+                    <h3 class="card-title mb-0">💳 Assinatura Premium - Simulador HFC/GPON</h3>
                 </div>
                 <div class="card-body">
                     {% if is_active %}
@@ -16,7 +16,7 @@
                             <h5>✅ Assinatura Ativa</h5>
                             <p>Tipo: <strong>{{ subscription_status }}</strong></p>
                             <p>Sua assinatura está ativa até <strong>{{ expires_at }}</strong>.</p>
-                            <p>Aproveite todas as funcionalidades do Simulador ETN!</p>
+                            <p>Aproveite todas as funcionalidades do Simulador HFC/GPON!</p>
                         </div>
                         <div class="text-center mt-3">
                             <a href="{{ url_for('html_bp.professor_dashboard') }}" class="btn btn-primary btn-lg">Ir para o Painel</a>

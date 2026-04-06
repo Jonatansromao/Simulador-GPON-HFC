@@ -29,7 +29,7 @@ def _crc16(payload: str) -> str:
     return f"{crc:04X}"
 
 
-def generate_pix_qrcode(amount: float, description: str = "Assinatura Premium Simulador ETN"):
+def generate_pix_qrcode(amount: float, description: str = "Assinatura Premium Simulador HFC/GPON"):
     """
     Gera um QR code PIX estático com o valor desejado.
     Se a biblioteca de QR não estiver disponível, retorna apenas o código PIX.
@@ -89,5 +89,5 @@ def get_pix_display_data():
         "holder": "Lais Romao Batista",
         "bank": "Itaú",
         "amount": 250.00,
-        "description": "Assinatura Premium Simulador ETN"
+        "description": "Assinatura Premium Simulador HFC/GPON"
     }

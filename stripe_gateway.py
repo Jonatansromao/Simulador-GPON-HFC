@@ -26,7 +26,7 @@ class StripeGateway:
                         "price_data": {
                             "currency": "brl",
                             "product_data": {
-                                "name": "Assinatura Premium Simulador ETN",
+                                "name": "Assinatura Premium Simulador HFC/GPON",
                                 "description": "Acesso premium por 30 dias",
                                 "images": [],
                             },
@@ -76,7 +76,7 @@ class StripeGateway:
                         "price_data": {
                             "currency": "brl",
                             "product_data": {
-                                "name": "Assinatura Premium Simulador ETN",
+                                "name": "Assinatura Premium Simulador HFC/GPON",
                                 "description": "Acesso premium por 30 dias",
                             },
                             "unit_amount": int(valor * 100),  # Valor em centavos

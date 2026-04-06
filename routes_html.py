@@ -130,7 +130,7 @@ def create_password_reset(user_type: str, user_id: int, email: str, nome: str) -
 
     reset_url = url_for("html_bp.reset_password", token=token, _external=True)
 
-    subject = "Redefinição de senha - Simulador ETN"
+    subject = "Redefinição de senha - Simulador HFC/GPON"
     body_text = f"""Olá {nome},
 
 Você solicitou a redefinição de senha. Acesse o link abaixo para escolher uma nova senha. O link expira em {RESET_TOKEN_EXPIRY//60} minutos.
@@ -140,14 +140,14 @@ Você solicitou a redefinição de senha. Acesse o link abaixo para escolher uma
 Se você não solicitou, ignore esta mensagem.
 
 Atenciosamente,
-Equipe Simulador ETN
+Equipe Simulador HFC/GPON
 """
     body_html = f"""
 <p>Olá {nome},</p>
 <p>Você solicitou a redefinição de senha. Acesse o link abaixo para escolher uma nova senha. O link expira em <strong>{RESET_TOKEN_EXPIRY//60} minutos</strong>.</p>
 <p><a href="{reset_url}">Redefinir minha senha</a></p>
 <p>Se você não solicitou, ignore esta mensagem.</p>
-<p>Atenciosamente,<br>Equipe Simulador ETN</p>
+<p>Atenciosamente,<br>Equipe Simulador HFC/GPON</p>
 """
     sent = send_email(email, subject, body_text, body_html)
     return sent
@@ -244,7 +244,7 @@ def is_admin_email(email: str) -> bool:
 def generate_invite_code() -> str:
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     while True:
-        code = "ETN-" + "".join(secrets.choice(alphabet) for _ in range(6))
+        code = "HGP-" + "".join(secrets.choice(alphabet) for _ in range(6))
         if not Professor.query.filter_by(invite_code=code).first():
             return code
 
@@ -970,7 +970,7 @@ def professor_resetar_senha_aluno(aluno_id):
 
     try:
         alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-        temporary_password = "ETN-" + "".join(secrets.choice(alphabet) for _ in range(6))
+        temporary_password = "HGP-" + "".join(secrets.choice(alphabet) for _ in range(6))
         aluno.set_password(temporary_password)
         db.session.commit()
         flash(

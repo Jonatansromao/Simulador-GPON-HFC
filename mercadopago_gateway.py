@@ -44,7 +44,7 @@ class MercadoPagoGateway:
         preference = {
             "items": [
                 {
-                    "title": "Assinatura Premium Simulador ETN",
+                    "title": "Assinatura Premium Simulador HFC/GPON",
                     "quantity": 1,
                     "currency_id": "BRL",
                     "unit_price": float(valor),
@@ -94,7 +94,7 @@ class MercadoPagoGateway:
 
         payload = {
             "transaction_amount": float(valor),
-            "description": "Assinatura Premium Simulador ETN",
+            "description": "Assinatura Premium Simulador HFC/GPON",
             "payment_method_id": "pix",
             "external_reference": str(payment_id) if payment_id else None,
             "notification_url": f"{base_url}/webhook/mercadopago",
