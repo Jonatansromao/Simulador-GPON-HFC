@@ -258,6 +258,11 @@ def ensure_professor_invite_code(professor: Professor | None) -> str | None:
     return professor.invite_code
 
 
+def emit_professor_dashboard_update(professor_id: int | None):
+    if professor_id:
+        socketio.emit("painel_professor_atualizado", {"professor_id": professor_id})
+
+
 def get_aluno_status_message(aluno: Aluno | None) -> tuple[str | None, str]:
     if not aluno:
         return None, "secondary"
@@ -333,6 +338,7 @@ def aluno_register():
         aluno.set_password(senha)
         db.session.add(aluno)
         db.session.commit()
+        emit_professor_dashboard_update(professor.id)
 
         flash("Cadastro realizado com sucesso! Seu acesso ficará pendente até a aprovação do professor.", "success")
         return redirect(url_for("html_bp.login_aluno"))
@@ -926,6 +932,7 @@ def professor_regerar_convite():
 
     professor.invite_code = generate_invite_code()
     db.session.commit()
+    emit_professor_dashboard_update(professor.id)
     flash("Novo código de convite gerado com sucesso.", "success")
     return redirect(url_for("html_bp.professor_dashboard"))
 
@@ -941,6 +948,7 @@ def professor_aprovar_aluno(aluno_id):
     aluno.approval_status = "approved"
     aluno.approved_at = datetime.utcnow()
     db.session.commit()
+    emit_professor_dashboard_update(session["usuario"]["id"])
     flash(f"Aluno {aluno.nome} aprovado com sucesso.", "success")
     return redirect(url_for("html_bp.professor_dashboard"))
 
@@ -956,6 +964,7 @@ def professor_recusar_aluno(aluno_id):
     aluno.approval_status = "rejected"
     aluno.approved_at = None
     db.session.commit()
+    emit_professor_dashboard_update(session["usuario"]["id"])
     flash(f"Aluno {aluno.nome} recusado.", "info")
     return redirect(url_for("html_bp.professor_dashboard"))
 
@@ -1001,6 +1010,7 @@ def professor_remover_aluno(aluno_id):
         Matricula.query.filter_by(aluno_id=aluno.id).delete(synchronize_session=False)
         db.session.delete(aluno)
         db.session.commit()
+        emit_professor_dashboard_update(session["usuario"]["id"])
         flash(f"Aluno {nome_aluno} removido com sucesso.", "success")
     except Exception:
         db.session.rollback()

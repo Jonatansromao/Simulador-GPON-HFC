@@ -37,48 +37,50 @@
             <button type="submit" class="btn btn-outline-primary btn-sm">Regerar código</button>
           </form>
         </div>
-        <small class="text-muted mt-2">Alunos aprovados: <strong>{{ total_alunos_aprovados }}</strong></small>
+        <small class="text-muted mt-2">Alunos aprovados: <strong id="total-alunos-aprovados">{{ total_alunos_aprovados }}</strong></small>
       </div>
     </div>
     <div class="col-lg-7">
       <div class="card shadow h-100 p-3">
         <h5 class="mb-3">✅ Solicitações pendentes</h5>
-        {% if solicitacoes_pendentes %}
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Aluno</th>
-                  <th>Empresa</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for aluno in solicitacoes_pendentes %}
+        <div id="solicitacoes-pendentes-container">
+          {% if solicitacoes_pendentes %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
                   <tr>
-                    <td>
-                      <strong>{{ aluno.nome }}</strong><br>
-                      <small class="text-muted">{{ aluno.email }}</small>
-                    </td>
-                    <td>{{ aluno.empresa or '—' }}</td>
-                    <td>
-                      <div class="d-flex gap-1">
-                        <form method="POST" action="{{ url_for('html_bp.professor_aprovar_aluno', aluno_id=aluno.id) }}">
-                          <button type="submit" class="btn btn-success btn-sm">Aprovar</button>
-                        </form>
-                        <form method="POST" action="{{ url_for('html_bp.professor_recusar_aluno', aluno_id=aluno.id) }}">
-                          <button type="submit" class="btn btn-outline-danger btn-sm">Recusar</button>
-                        </form>
-                      </div>
-                    </td>
+                    <th>Aluno</th>
+                    <th>Empresa</th>
+                    <th>Ações</th>
                   </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <p class="text-muted mb-0">Nenhum aluno aguardando aprovação no momento.</p>
-        {% endif %}
+                </thead>
+                <tbody>
+                  {% for aluno in solicitacoes_pendentes %}
+                    <tr>
+                      <td>
+                        <strong>{{ aluno.nome }}</strong><br>
+                        <small class="text-muted">{{ aluno.email }}</small>
+                      </td>
+                      <td>{{ aluno.empresa or '—' }}</td>
+                      <td>
+                        <div class="d-flex gap-1">
+                          <form method="POST" action="{{ url_for('html_bp.professor_aprovar_aluno', aluno_id=aluno.id) }}">
+                            <button type="submit" class="btn btn-success btn-sm">Aprovar</button>
+                          </form>
+                          <form method="POST" action="{{ url_for('html_bp.professor_recusar_aluno', aluno_id=aluno.id) }}">
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Recusar</button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">Nenhum aluno aguardando aprovação no momento.</p>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>
@@ -86,65 +88,67 @@
   <div class="card shadow p-4 mb-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h4 class="mb-0">👥 Alunos vinculados</h4>
-      <span class="badge bg-secondary">{{ alunos_vinculados|length }} aluno(s)</span>
+      <span class="badge bg-secondary" id="alunos-vinculados-count">{{ alunos_vinculados|length }} aluno(s)</span>
     </div>
 
-    {% if alunos_vinculados %}
-      <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle mb-2">
-          <thead class="table-light">
-            <tr>
-              <th>Aluno</th>
-              <th>Empresa</th>
-              <th>Status</th>
-              <th>Aprovado em</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for aluno in alunos_vinculados %}
+    <div id="alunos-vinculados-container">
+      {% if alunos_vinculados %}
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle mb-2">
+            <thead class="table-light">
               <tr>
-                <td>
-                  <strong>{{ aluno.nome }}</strong><br>
-                  <small class="text-muted">{{ aluno.email }}</small><br>
-                  <small class="text-muted">CPF: {{ aluno.cpf }}</small>
-                </td>
-                <td>{{ aluno.empresa or '—' }}</td>
-                <td>
-                  {% if aluno.approval_status == 'approved' or not aluno.approval_status %}
-                    <span class="badge bg-success">Aprovado</span>
-                  {% elif aluno.approval_status == 'rejected' %}
-                    <span class="badge bg-danger">Recusado</span>
-                  {% else %}
-                    <span class="badge bg-warning text-dark">Pendente</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if aluno.approved_at %}
-                    {{ aluno.approved_at.strftime("%d/%m/%Y %H:%M") }}
-                  {% else %}
-                    <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-                <td>
-                  <div class="d-flex flex-wrap gap-1">
-                    <form method="POST" action="{{ url_for('html_bp.professor_resetar_senha_aluno', aluno_id=aluno.id) }}">
-                      <button type="submit" class="btn btn-outline-primary btn-sm">🔑 Nova senha</button>
-                    </form>
-                    <form method="POST" action="{{ url_for('html_bp.professor_remover_aluno', aluno_id=aluno.id) }}" onsubmit="return confirm('Tem certeza que deseja descadastrar este aluno?');">
-                      <button type="submit" class="btn btn-outline-danger btn-sm">🗑 Remover</button>
-                    </form>
-                  </div>
-                </td>
+                <th>Aluno</th>
+                <th>Empresa</th>
+                <th>Status</th>
+                <th>Aprovado em</th>
+                <th>Ações</th>
               </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <small class="text-muted">Você pode gerar uma senha temporária para o aluno ou remover o cadastro dele deste professor.</small>
-    {% else %}
-      <p class="text-muted mb-0">Nenhum aluno vinculado a este professor até o momento.</p>
-    {% endif %}
+            </thead>
+            <tbody>
+              {% for aluno in alunos_vinculados %}
+                <tr>
+                  <td>
+                    <strong>{{ aluno.nome }}</strong><br>
+                    <small class="text-muted">{{ aluno.email }}</small><br>
+                    <small class="text-muted">CPF: {{ aluno.cpf }}</small>
+                  </td>
+                  <td>{{ aluno.empresa or '—' }}</td>
+                  <td>
+                    {% if aluno.approval_status == 'approved' or not aluno.approval_status %}
+                      <span class="badge bg-success">Aprovado</span>
+                    {% elif aluno.approval_status == 'rejected' %}
+                      <span class="badge bg-danger">Recusado</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark">Pendente</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if aluno.approved_at %}
+                      {{ aluno.approved_at.strftime("%d/%m/%Y %H:%M") }}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="d-flex flex-wrap gap-1">
+                      <form method="POST" action="{{ url_for('html_bp.professor_resetar_senha_aluno', aluno_id=aluno.id) }}">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">🔑 Nova senha</button>
+                      </form>
+                      <form method="POST" action="{{ url_for('html_bp.professor_remover_aluno', aluno_id=aluno.id) }}" onsubmit="return confirm('Tem certeza que deseja descadastrar este aluno?');">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">🗑 Remover</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <small class="text-muted">Você pode gerar uma senha temporária para o aluno ou remover o cadastro dele deste professor.</small>
+      {% else %}
+        <p class="text-muted mb-0">Nenhum aluno vinculado a este professor até o momento.</p>
+      {% endif %}
+    </div>
   </div>
 
   <!-- Cadastro de Turma -->
@@ -310,6 +314,121 @@
     }
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function renderSolicitacoesPendentes(alunos) {
+    const container = document.getElementById("solicitacoes-pendentes-container");
+    if (!container) return;
+
+    if (!alunos.length) {
+      container.innerHTML = '<p class="text-muted mb-0">Nenhum aluno aguardando aprovação no momento.</p>';
+      return;
+    }
+
+    const rows = alunos.map((aluno) => `
+      <tr>
+        <td>
+          <strong>${escapeHtml(aluno.nome)}</strong><br>
+          <small class="text-muted">${escapeHtml(aluno.email)}</small>
+        </td>
+        <td>${escapeHtml(aluno.empresa || "—")}</td>
+        <td>
+          <div class="d-flex gap-1">
+            <form method="POST" action="/professor/alunos/${aluno.id}/aprovar">
+              <button type="submit" class="btn btn-success btn-sm">Aprovar</button>
+            </form>
+            <form method="POST" action="/professor/alunos/${aluno.id}/recusar">
+              <button type="submit" class="btn btn-outline-danger btn-sm">Recusar</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    container.innerHTML = `
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Aluno</th>
+              <th>Empresa</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderAlunosVinculados(alunos) {
+    const container = document.getElementById("alunos-vinculados-container");
+    const countBadge = document.getElementById("alunos-vinculados-count");
+    if (countBadge) {
+      countBadge.textContent = `${alunos.length} aluno(s)`;
+    }
+    if (!container) return;
+
+    if (!alunos.length) {
+      container.innerHTML = '<p class="text-muted mb-0">Nenhum aluno vinculado a este professor até o momento.</p>';
+      return;
+    }
+
+    const getBadge = (status) => {
+      if (!status || status === "approved") return '<span class="badge bg-success">Aprovado</span>';
+      if (status === "rejected") return '<span class="badge bg-danger">Recusado</span>';
+      return '<span class="badge bg-warning text-dark">Pendente</span>';
+    };
+
+    const rows = alunos.map((aluno) => `
+      <tr>
+        <td>
+          <strong>${escapeHtml(aluno.nome)}</strong><br>
+          <small class="text-muted">${escapeHtml(aluno.email)}</small><br>
+          <small class="text-muted">CPF: ${escapeHtml(aluno.cpf)}</small>
+        </td>
+        <td>${escapeHtml(aluno.empresa || "—")}</td>
+        <td>${getBadge(aluno.approval_status)}</td>
+        <td>${aluno.approved_at ? escapeHtml(aluno.approved_at) : '<span class="text-muted">—</span>'}</td>
+        <td>
+          <div class="d-flex flex-wrap gap-1">
+            <form method="POST" action="/professor/alunos/${aluno.id}/resetar_senha">
+              <button type="submit" class="btn btn-outline-primary btn-sm">🔑 Nova senha</button>
+            </form>
+            <form method="POST" action="/professor/alunos/${aluno.id}/remover" onsubmit="return confirm('Tem certeza que deseja descadastrar este aluno?');">
+              <button type="submit" class="btn btn-outline-danger btn-sm">🗑 Remover</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+
+    container.innerHTML = `
+      <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle mb-2">
+          <thead class="table-light">
+            <tr>
+              <th>Aluno</th>
+              <th>Empresa</th>
+              <th>Status</th>
+              <th>Aprovado em</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <small class="text-muted">Você pode gerar uma senha temporária para o aluno ou remover o cadastro dele deste professor.</small>
+    `;
+  }
+
   async function sincronizarPainelProfessor() {
     try {
       const response = await fetch("/api/professor_dashboard", {
@@ -326,6 +445,14 @@
           prontos: turma.prontos,
         });
       });
+
+      const totalAprovados = document.getElementById("total-alunos-aprovados");
+      if (totalAprovados) {
+        totalAprovados.textContent = data.total_alunos_aprovados ?? 0;
+      }
+
+      renderSolicitacoesPendentes(data.solicitacoes_pendentes || []);
+      renderAlunosVinculados(data.alunos_vinculados || []);
     } catch (error) {
       console.error("Erro ao sincronizar painel do professor:", error);
     }
@@ -339,6 +466,9 @@
 
   socket.on("status_turma_atualizado", atualizarLinhaTurma);
   socket.on("alunos_prontos_atualizado", atualizarLinhaTurma);
+  socket.on("painel_professor_atualizado", () => {
+    sincronizarPainelProfessor();
+  });
 
   sincronizarPainelProfessor();
   window.setInterval(sincronizarPainelProfessor, 3000);

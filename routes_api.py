@@ -104,6 +104,7 @@ api_bp = Blueprint("api_bp", __name__)
 @api_premium_required
 def api_professor_dashboard():
     professor_id = session["usuario"]["id"]
+    professor = Professor.query.get(professor_id)
     turmas = Turma.query.filter_by(professor_id=professor_id).all()
 
     data = []
@@ -122,7 +123,44 @@ def api_professor_dashboard():
             "prontos": prontos_count
         })
 
-    return jsonify({"turmas": data})
+    solicitacoes_pendentes = Aluno.query.filter_by(
+        professor_id=professor_id,
+        approval_status="pending",
+    ).order_by(Aluno.nome.asc()).all()
+    alunos_vinculados = Aluno.query.filter_by(
+        professor_id=professor_id,
+    ).order_by(Aluno.nome.asc()).all()
+    total_alunos_aprovados = Aluno.query.filter(
+        Aluno.professor_id == professor_id,
+        ((Aluno.approval_status == "approved") | (Aluno.approval_status.is_(None)) | (Aluno.approval_status == "")),
+    ).count()
+
+    return jsonify({
+        "turmas": data,
+        "invite_code": getattr(professor, "invite_code", None),
+        "total_alunos_aprovados": total_alunos_aprovados,
+        "solicitacoes_pendentes": [
+            {
+                "id": aluno.id,
+                "nome": aluno.nome,
+                "email": aluno.email,
+                "empresa": aluno.empresa or "—",
+            }
+            for aluno in solicitacoes_pendentes
+        ],
+        "alunos_vinculados": [
+            {
+                "id": aluno.id,
+                "nome": aluno.nome,
+                "email": aluno.email,
+                "cpf": aluno.cpf,
+                "empresa": aluno.empresa or "—",
+                "approval_status": (aluno.approval_status or "approved").lower(),
+                "approved_at": aluno.approved_at.strftime("%d/%m/%Y %H:%M") if aluno.approved_at else None,
+            }
+            for aluno in alunos_vinculados
+        ],
+    })
 
 # -----------------------------
 # Questões (API)
