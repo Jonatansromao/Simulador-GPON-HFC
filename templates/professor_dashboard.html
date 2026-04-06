@@ -124,7 +124,7 @@
                   </td>
                   <td>
                     {% if aluno.approved_at %}
-                      {{ aluno.approved_at.strftime("%d/%m/%Y %H:%M") }}
+                      {{ aluno.approved_at|datetime_local("%d/%m/%Y %H:%M") }}
                     {% else %}
                       <span class="text-muted">—</span>
                     {% endif %}
@@ -253,6 +253,7 @@
           <td>{{ turma.prontos }}</td>
           <td>
             <div class="btn-group btn-group-sm" role="group" aria-label="Ações">
+              <a href="{{ url_for('html_bp.professor_sala', turma_id=turma.id) }}" class="btn btn-info" title="Acompanhar sala">👁</a>
               <a href="/turma_result/{{ turma.id }}" class="btn btn-primary">📊</a>
               <button class="btn btn-danger" onclick="excluirTurma({{ turma.id }})">🗑</button>
               {% if turma.status == "Aguardando" %}
@@ -285,6 +286,7 @@
   function renderizarAcoesTurma(data) {
     let html = `
       <div class="btn-group btn-group-sm" role="group" aria-label="Ações">
+        <a href="/professor/sala/${data.id}" class="btn btn-info" title="Acompanhar sala">👁</a>
         <a href="/turma_result/${data.id}" class="btn btn-primary">📊</a>
         <button class="btn btn-danger" onclick="excluirTurma(${data.id})">🗑</button>
     `;

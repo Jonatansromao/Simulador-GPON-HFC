@@ -139,6 +139,7 @@ const app = new Vue({
     }
   },
   mounted() {
+    sessionStorage.removeItem(`quiz-finished-turma-${turmaId}`);
     this.sincronizarSala();
 
     fetch(`/aluno_entrar/${turmaId}`, {

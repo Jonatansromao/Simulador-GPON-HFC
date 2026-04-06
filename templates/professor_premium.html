@@ -112,7 +112,7 @@
                                         {% if pending_payment %}
                                             <div class="alert alert-warning">
                                                 <h6>⏳ Pagamento PIX pendente</h6>
-                                                <p>Solicitação registrada em {{ pending_payment.created_at.strftime('%d/%m/%Y %H:%M') }}.</p>
+                                                <p>Solicitação registrada em {{ pending_payment.created_at|datetime_local('%d/%m/%Y %H:%M') }}.</p>
                                                 <p>Status: <strong>{{ pending_payment.status|capitalize }}</strong></p>
                                                 <p>O pagamento será confirmado manualmente.</p>
                                             </div>

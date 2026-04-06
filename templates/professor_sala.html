@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block titulo %}Sala da Turma - Professor{% endblock %}
+
+{% block conteudo %}
+<div class="container mt-4" id="professor-sala-app" data-turma-id="{{ turma.id }}">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h2 class="mb-1">👨‍🏫 Acompanhamento da Sala</h2>
+      <p class="text-muted mb-0">
+        <strong>Turma:</strong> {{ turma.nome }} •
+        <strong>Disciplina:</strong> {{ turma.disciplina }} •
+        <strong>Data:</strong> {{ turma.data.strftime('%d/%m/%Y') if turma.data else '—' }}
+      </p>
+    </div>
+    <a href="{{ url_for('html_bp.professor_dashboard') }}" class="btn btn-outline-secondary">← Voltar ao painel</a>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <h6 class="text-muted">Status da sala</h6>
+          <div id="status-sala" class="fs-5 fw-bold text-primary text-capitalize">{{ status }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <h6 class="text-muted">Alunos na sala</h6>
+          <div id="total-sala" class="fs-5 fw-bold">{{ total }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <h6 class="text-muted">Alunos prontos</h6>
+          <div id="prontos-sala" class="fs-5 fw-bold text-success">{{ prontos }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>📋 Participantes conectados</span>
+      <span class="badge bg-dark" id="badge-total-alunos">{{ total }} aluno(s)</span>
+    </div>
+    <div class="card-body">
+      <div id="lista-alunos">
+        {% if alunos %}
+          <ul class="list-group list-group-flush">
+            {% for aluno in alunos %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  <strong>{{ aluno.nome }}</strong>
+                  {% if aluno.email %}
+                    <br><small class="text-muted">{{ aluno.email }}</small>
+                  {% endif %}
+                </div>
+                <span class="badge {% if aluno.pronto %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                  {% if aluno.pronto %}Pronto{% else %}Aguardando{% endif %}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">Nenhum aluno entrou na sala ainda.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header">⚙️ Ações rápidas</div>
+    <div class="card-body d-flex flex-wrap gap-2">
+      {% if turma.status == 'Aguardando' %}
+        <form method="POST" action="{{ url_for('html_bp.iniciar_quiz', turma_id=turma.id) }}">
+          <button type="submit" class="btn btn-success">▶ Iniciar quiz</button>
+        </form>
+      {% elif turma.status == 'Em andamento' %}
+        <form method="POST" action="{{ url_for('html_bp.encerrar_quiz', turma_id=turma.id) }}">
+          <button type="submit" class="btn btn-warning">⏹ Encerrar quiz</button>
+        </form>
+      {% elif turma.status == 'Encerrado' %}
+        <form method="POST" action="{{ url_for('html_bp.resetar_turma', turma_id=turma.id) }}">
+          <button type="submit" class="btn btn-secondary">🔄 Reiniciar turma</button>
+        </form>
+      {% endif %}
+      <a href="{{ url_for('html_bp.turma_result', turma_id=turma.id) }}" class="btn btn-primary">📊 Ver resultados</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const turmaId = Number(document.getElementById('professor-sala-app')?.dataset.turmaId || 0);
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function renderListaAlunos(alunos) {
+    const container = document.getElementById('lista-alunos');
+    const badge = document.getElementById('badge-total-alunos');
+    const total = document.getElementById('total-sala');
+    const prontos = document.getElementById('prontos-sala');
+
+    if (badge) badge.textContent = `${alunos.length} aluno(s)`;
+    if (total) total.textContent = alunos.length;
+    if (prontos) prontos.textContent = alunos.filter((aluno) => aluno.pronto).length;
+
+    if (!alunos.length) {
+      container.innerHTML = '<p class="text-muted mb-0">Nenhum aluno entrou na sala ainda.</p>';
+      return;
+    }
+
+    container.innerHTML = `
+      <ul class="list-group list-group-flush">
+        ${alunos.map((aluno) => `
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>${escapeHtml(aluno.nome)}</strong>
+              ${aluno.email ? `<br><small class="text-muted">${escapeHtml(aluno.email)}</small>` : ''}
+            </div>
+            <span class="badge ${aluno.pronto ? 'bg-success' : 'bg-warning text-dark'}">
+              ${aluno.pronto ? 'Pronto' : 'Aguardando'}
+            </span>
+          </li>
+        `).join('')}
+      </ul>
+    `;
+  }
+
+  function applySalaUpdate(data) {
+    if (!data || Number(data.id || turmaId) !== turmaId) return;
+    const status = (data.status || '').toLowerCase();
+    const statusEl = document.getElementById('status-sala');
+    if (statusEl) {
+      statusEl.textContent = status || 'aguardando';
+    }
+    renderListaAlunos(Array.isArray(data.alunos) ? data.alunos : []);
+  }
+
+  async function syncSalaProfessor() {
+    try {
+      const response = await fetch(`/api/sala_espera/${turmaId}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      applySalaUpdate({ id: turmaId, ...data });
+    } catch (error) {
+      console.error('Erro ao sincronizar sala do professor:', error);
+    }
+  }
+
+  const socket = io({
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 10,
+  });
+
+  socket.on('status_turma_atualizado', applySalaUpdate);
+  socket.on('alunos_prontos_atualizado', applySalaUpdate);
+
+  syncSalaProfessor();
+  window.setInterval(syncSalaProfessor, 3000);
+</script>
+{% endblock %}

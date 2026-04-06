@@ -120,12 +120,10 @@
 
         <!-- 🔹 Botões -->
         {% if turma %}
-            <!-- Se estava em turma, volta para a sala de espera -->
-            <a href="{{ url_for('html_bp.sala_espera', turma_id=turma.id) }}" class="btn-restart">
-                🎓 VOLTAR PARA A SALA DE ESPERA
+            <a href="{{ url_for('html_bp.voltar_painel') }}" class="btn-restart">
+                🎓 VOLTAR PARA A SALA / RESULTADOS
             </a>
         {% else %}
-            <!-- Se não estava em turma (simulado livre), volta para o painel -->
             <a href="{{ url_for('html_bp.aluno_dashboard') }}" class="btn-restart">
                 🎓 VOLTAR PARA O PAINEL
             </a>

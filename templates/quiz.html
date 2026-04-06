@@ -121,9 +121,27 @@ new Vue({
         current: 0,
         total: 0,
         questions: [],
-        answers: {}
+        answers: {},
+        storageKey: "",
+        safeRedirect: "",
+        pageShowHandler: null
     },
     mounted() {
+        {% if turma_id is defined %}
+            this.storageKey = `quiz-finished-turma-{{ turma_id }}`;
+            this.safeRedirect = "{{ url_for('html_bp.voltar_painel') }}";
+        {% else %}
+            this.storageKey = `quiz-finished-livre-{{ banco }}`;
+            this.safeRedirect = "{{ url_for('html_bp.aluno_dashboard') }}";
+        {% endif %}
+
+        if (sessionStorage.getItem(this.storageKey)) {
+            window.location.replace(this.safeRedirect);
+            return;
+        }
+
+        this.pageShowHandler = () => this.handlePageShow();
+        window.addEventListener("pageshow", this.pageShowHandler);
         {% if turma_id is defined %}
             // 🔹 Se for turma, já vem do backend
             this.questions = {{ questoes|default([])|tojson }};
@@ -148,6 +166,11 @@ new Vue({
         {% endif %}
     },
     methods: {
+        handlePageShow() {
+            if (this.storageKey && sessionStorage.getItem(this.storageKey)) {
+                window.location.replace(this.safeRedirect || "/aluno/dashboard");
+            }
+        },
         selectOption(qid, letra) {
             this.$set(this.answers, qid, letra);
         },
@@ -182,10 +205,21 @@ new Vue({
             })
             .then(response => response.text())
             .then(html => {
+                if (this.storageKey) {
+                    sessionStorage.setItem(this.storageKey, "1");
+                }
+                if (this.safeRedirect) {
+                    window.history.replaceState({ quizFinished: true }, "", this.safeRedirect);
+                }
                 document.open();
                 document.write(html);
                 document.close();
             });
+        }
+    },
+    beforeDestroy() {
+        if (this.pageShowHandler) {
+            window.removeEventListener("pageshow", this.pageShowHandler);
         }
     }
 });

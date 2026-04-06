@@ -8,7 +8,8 @@ import hashlib
 import smtplib
 import ssl
 from email.message import EmailMessage
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from flask import (
     Blueprint,
@@ -20,6 +21,7 @@ from flask import (
     request,
     flash,
     current_app,
+    make_response,
 )
 from models import (
     db,
@@ -46,6 +48,36 @@ html_bp = Blueprint("html_bp", __name__)
 # -----------------------------
 # tempo de validade do token (segundos) — padrão 1 hora
 RESET_TOKEN_EXPIRY = int(os.getenv("RESET_TOKEN_EXPIRY", "3600"))
+
+try:
+    APP_TIMEZONE = ZoneInfo(os.getenv("APP_TIMEZONE", "America/Sao_Paulo"))
+except Exception:
+    APP_TIMEZONE = timezone(timedelta(hours=-3))
+
+
+def format_datetime_local(value, fmt: str = "%d/%m/%Y %H:%M") -> str:
+    if not value:
+        return ""
+
+    if isinstance(value, datetime):
+        localized = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+        return localized.astimezone(APP_TIMEZONE).strftime(fmt)
+
+    return value.strftime(fmt)
+
+
+def make_no_cache_response(content):
+    response = make_response(content)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
+@html_bp.app_template_filter("datetime_local")
+def datetime_local_filter(value, fmt: str = "%d/%m/%Y %H:%M"):
+    return format_datetime_local(value, fmt)
+
 
 # -----------------------------
 # Helpers: envio de e-mail e tokens
@@ -191,7 +223,14 @@ def premium_required(f):
 # Funções utilitárias de atualização em tempo real
 # -----------------------------
 def build_turma_realtime_payload(turma):
-    alunos_data = [{"nome": m.aluno.nome, "pronto": bool(m.pronto)} for m in turma.matriculas]
+    alunos_data = [
+        {
+            "nome": m.aluno.nome,
+            "email": getattr(m.aluno, "email", ""),
+            "pronto": bool(m.pronto),
+        }
+        for m in turma.matriculas
+    ]
     return {
         "id": turma.id,
         "status": turma.status,
@@ -645,7 +684,7 @@ def aluno_entrar(turma_id):
 def sala_espera(turma_id):
     turma = Turma.query.get_or_404(turma_id)
 
-    alunos = [{"nome": m.aluno.nome, "pronto": m.pronto} for m in Matricula.query.filter_by(turma_id=turma.id).all()]
+    alunos = [{"nome": m.aluno.nome, "email": m.aluno.email, "pronto": m.pronto} for m in Matricula.query.filter_by(turma_id=turma.id).all()]
 
     questoes = [q.to_dict() for q in turma.questoes] if turma.questoes else []
 
@@ -653,13 +692,31 @@ def sala_espera(turma_id):
         "sala_espera.html",
         turma={
             "Turma": turma.id,
+            "Nome": turma.nome,
             "Disciplina": turma.disciplina,
-            "DATA": turma.data.strftime("%d/%m/%Y %H:%M"),
+            "DATA": turma.data.strftime("%d/%m/%Y") if turma.data else "",
             "Status": turma.status,
             "Sheet": turma.sheet_name,
             "Questoes": questoes,
         },
         alunos=alunos,
+    )
+
+
+@html_bp.route("/professor/sala/<int:turma_id>")
+@api_login_required_professor
+@premium_required
+def professor_sala(turma_id):
+    turma = Turma.query.filter_by(id=turma_id, professor_id=session["usuario"]["id"]).first_or_404()
+    payload = build_turma_realtime_payload(turma)
+
+    return render_template(
+        "professor_sala.html",
+        turma=turma,
+        alunos=payload["alunos"],
+        total=payload["total"],
+        prontos=payload["prontos"],
+        status=(payload["status"] or "Aguardando").lower(),
     )
 
 
@@ -723,7 +780,7 @@ def aluno_historico_turma(turma_id):
 
         resultados.append(
             {
-                "data": r.data_envio.strftime("%d/%m/%Y %H:%M"),
+                "data": format_datetime_local(r.data_envio, "%d/%m/%Y %H:%M"),
                 "turma_id": r.turma_id,
                 "question_text": questao.texto if questao else r.questao,
                 "user_option": r.resposta,
@@ -1050,13 +1107,13 @@ def start_quiz():
     # 🔹 Carregar questões aleatórias do banco escolhido
     questoes = Questao.query.filter_by(banco=sheet).order_by(db.func.random()).limit(10).all()
 
-    return render_template(
+    return make_no_cache_response(render_template(
         "quiz.html",
         titulo=f"Quiz Aleatório - {sheet}",
         banco=sheet,
         turma_id=turma_id,
         questoes=[q.to_dict() for q in questoes],
-    )
+    ))
 
 
 @html_bp.route("/start_quiz_manual")
@@ -1067,13 +1124,13 @@ def start_quiz_manual():
     # 🔹 Carregar questões vinculadas à turma
     questoes = turma.questoes
 
-    return render_template(
+    return make_no_cache_response(render_template(
         "quiz.html",
         titulo=f"Quiz Manual - {turma.nome}",
         banco=turma.sheet_name,
         turma_id=turma.id,
         questoes=[q.to_dict() for q in questoes],
-    )
+    ))
 
 
 @html_bp.route("/encerrar_quiz/<int:turma_id>", methods=["POST"])
@@ -1142,7 +1199,7 @@ def aluno_quiz(turma_id):
     questoes_turma = QuestaoTurma.query.filter_by(turma_id=turma.id).all()
     questoes = [Questao.query.get(qt.questao_id) for qt in questoes_turma]
 
-    return render_template("quiz.html", questoes=questoes, titulo=f"Quiz da Turma {turma.nome}")
+    return make_no_cache_response(render_template("quiz.html", questoes=questoes, titulo=f"Quiz da Turma {turma.nome}"))
 
 
 # -----------------------------
@@ -1179,7 +1236,7 @@ def resultados_individuais():
                     "total_correct": 0,
                     "total_questions": 0,
                     "score": 0,
-                    "data": r.data_envio.strftime("%d/%m/%Y %H:%M:%S"),
+                    "data": format_datetime_local(r.data_envio, "%d/%m/%Y %H:%M:%S"),
                     "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
                     "sheet_name": f"Simulado Livre - {r.banco}" if r.banco else "Simulado Livre",
                     "results": [],
@@ -1245,7 +1302,7 @@ def turma_result(turma_id):
                 "score": 0,
                 "total_correct": 0,
                 "total_questions": 0,
-                "data": r.data_envio.strftime("%d/%m/%Y %H:%M:%S"),
+                "data": format_datetime_local(r.data_envio, "%d/%m/%Y %H:%M:%S"),
                 "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
                 "sheet_name": turma.sheet_name or turma.disciplina,
                 "results": [],
@@ -1386,7 +1443,7 @@ def submit_answers(turma_id):
     emitir_atualizacao_turma(turma)
 
     # 🔹 Renderiza resultado final do quiz
-    return render_template("quiz_result.html", aluno=aluno, total=total, total_correct=total_correct, nota=nota, results=resultados, turma=turma)
+    return make_no_cache_response(render_template("quiz_result.html", aluno=aluno, total=total, total_correct=total_correct, nota=nota, results=resultados, turma=turma))
 
 
 # -----------------------------
@@ -1493,7 +1550,7 @@ def submit_answers_free():
 
     aluno = Aluno.query.get(aluno_id)
 
-    return render_template(
+    return make_no_cache_response(render_template(
         "quiz_result.html",
         aluno=aluno,
         score=pontuacao_obtida,
@@ -1504,7 +1561,7 @@ def submit_answers_free():
         results=resultados,
         banco=banco,
         nota=nota,  # 🔹 agora o template recebe a nota
-    )
+    ))
 
 
 # -----------------------------
@@ -1597,7 +1654,7 @@ def delete_resposta(cpf, data_iso):
 
         db.session.commit()
 
-        flash(f"Tentativa de {aluno.nome} em {data_dt.strftime('%d/%m/%Y %H:%M:%S')} excluída com sucesso! ({deletados} respostas)", "success")
+        flash(f"Tentativa de {aluno.nome} em {format_datetime_local(data_dt, '%d/%m/%Y %H:%M:%S')} excluída com sucesso! ({deletados} respostas)", "success")
     except Exception as e:
         db.session.rollback()
         flash(f"Erro ao excluir respostas: {e}", "danger")

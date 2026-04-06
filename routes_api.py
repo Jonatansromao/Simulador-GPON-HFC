@@ -2,12 +2,26 @@ import random
 from flask import Blueprint, request, jsonify, session, redirect, url_for, flash
 from models import db, Professor, Turma, Aluno, Matricula, Questao, Resposta, SimuladoLivre, Payment
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 try:
     import stripe
 except ImportError:
     stripe = None
+
+try:
+    APP_TIMEZONE = ZoneInfo("America/Sao_Paulo")
+except Exception:
+    APP_TIMEZONE = timezone(timedelta(hours=-3))
+
+
+def format_datetime_local(value, fmt="%d/%m/%Y %H:%M"):
+    if not value:
+        return ""
+    localized = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+    return localized.astimezone(APP_TIMEZONE).strftime(fmt)
+
 
 # Helper to detect if request likely expects JSON (API/AJAX) or HTML (browser navigation)
 def prefers_json():
@@ -156,7 +170,7 @@ def api_professor_dashboard():
                 "cpf": aluno.cpf,
                 "empresa": aluno.empresa or "—",
                 "approval_status": (aluno.approval_status or "approved").lower(),
-                "approved_at": aluno.approved_at.strftime("%d/%m/%Y %H:%M") if aluno.approved_at else None,
+                "approved_at": format_datetime_local(aluno.approved_at, "%d/%m/%Y %H:%M") if aluno.approved_at else None,
             }
             for aluno in alunos_vinculados
         ],
@@ -268,7 +282,7 @@ def listar_simulados_livres():
             "banco": s.banco,
             "pontuacao": s.pontuacao,
             "acertos": s.acertos,
-            "data_realizacao": s.data_realizacao.strftime("%d/%m/%Y %H:%M")
+            "data_realizacao": format_datetime_local(s.data_realizacao, "%d/%m/%Y %H:%M")
         })
 
     return jsonify(data)
@@ -308,7 +322,7 @@ def api_aluno_result(cpf):
         nota = round((total_correct / total_questions) * 10, 1) if total_questions > 0 else 0
 
         resultados.append({
-            "data": inicio_tentativa.strftime("%d/%m/%Y %H:%M:%S"),
+            "data": format_datetime_local(inicio_tentativa, "%d/%m/%Y %H:%M:%S"),
             "data_iso": inicio_tentativa.strftime("%Y-%m-%dT%H:%M:%S"),
             "turma_id": None,
             "sheet_name": f"Simulado Livre - {sl.banco}",
@@ -342,7 +356,7 @@ def api_aluno_result_turma(turma_id):
         chave = f"{r.turma_id}-{r.data_envio.strftime('%Y%m%d%H%M%S')}"
         if chave not in simulados_turma:
             simulados_turma[chave] = {
-                "data": r.data_envio.strftime("%d/%m/%Y %H:%M:%S"),
+                "data": format_datetime_local(r.data_envio, "%d/%m/%Y %H:%M:%S"),
                 "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
                 "turma_id": turma_id,
                 "sheet_name": r.turma.sheet_name if r.turma else "Simulado de Turma",
@@ -484,7 +498,7 @@ def turma_result(turma_id):
             "score": score,
             "total_correct": total_correct,
             "total_questions": total_questions,
-            "data": respostas[-1].data_envio.strftime("%d/%m/%Y %H:%M") if respostas else "",
+            "data": format_datetime_local(respostas[-1].data_envio, "%d/%m/%Y %H:%M") if respostas else "",
             "sheet_name": turma.sheet_name,
             "results": [
                 {
@@ -506,12 +520,14 @@ def turma_result(turma_id):
 def api_sala_espera(turma_id):
     turma = Turma.query.get_or_404(turma_id)
     alunos = [
-        {"nome": m.aluno.nome, "pronto": m.pronto}
+        {"nome": m.aluno.nome, "email": m.aluno.email, "pronto": m.pronto}
         for m in Matricula.query.filter_by(turma_id=turma.id).all()
     ]
     return jsonify({
         "status": turma.status.lower(),
         "alunos": alunos,
+        "prontos": sum(1 for aluno in alunos if aluno.get("pronto")),
+        "total": len(alunos),
         "sheet_name": turma.sheet_name,
         "questoes": [q.id for q in turma.questoes] if turma.questoes else []
     })
