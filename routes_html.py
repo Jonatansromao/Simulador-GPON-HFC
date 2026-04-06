@@ -225,6 +225,7 @@ def premium_required(f):
 def build_turma_realtime_payload(turma):
     alunos_data = [
         {
+            "aluno_id": m.aluno_id,
             "nome": m.aluno.nome,
             "email": getattr(m.aluno, "email", ""),
             "pronto": bool(m.pronto),
@@ -666,11 +667,29 @@ def aluno_pronto(turma_id):
 def aluno_entrar(turma_id):
     aluno_id = session["usuario"]["id"]
 
+    turmas_afetadas = set()
+    matriculas_antigas = Matricula.query.filter(
+        Matricula.aluno_id == aluno_id,
+        Matricula.turma_id != turma_id,
+    ).all()
+
+    for matricula_antiga in matriculas_antigas:
+        turma_antiga = matricula_antiga.turma
+        if turma_antiga and turma_antiga.status != "Encerrado" and not matricula_antiga.respostas:
+            turmas_afetadas.add(turma_antiga.id)
+            db.session.delete(matricula_antiga)
+
     matricula = Matricula.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).first()
     if not matricula:
         matricula = Matricula(aluno_id=aluno_id, turma_id=turma_id, pronto=False)
         db.session.add(matricula)
-        db.session.commit()
+
+    db.session.commit()
+
+    for turma_antiga_id in turmas_afetadas:
+        turma_antiga = Turma.query.get(turma_antiga_id)
+        if turma_antiga:
+            emitir_atualizacao_turma(turma_antiga)
 
     turma = Turma.query.get_or_404(turma_id)
     payload = emitir_atualizacao_turma(turma)
@@ -718,6 +737,52 @@ def professor_sala(turma_id):
         prontos=payload["prontos"],
         status=(payload["status"] or "Aguardando").lower(),
     )
+
+
+@html_bp.route("/professor/turma/<int:turma_id>/remover_aluno/<int:aluno_id>", methods=["POST"])
+@api_login_required_professor
+@premium_required
+def professor_remover_aluno_da_sala(turma_id, aluno_id):
+    turma = Turma.query.filter_by(id=turma_id, professor_id=session["usuario"]["id"]).first()
+    if not turma:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": False, "message": "Turma não encontrada."}), 404
+        flash("Turma não encontrada.", "danger")
+        return redirect(url_for("html_bp.professor_dashboard"))
+
+    matricula = Matricula.query.filter_by(turma_id=turma_id, aluno_id=aluno_id).first()
+    if not matricula:
+        payload = build_turma_realtime_payload(turma)
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": False, "message": "Aluno já não está mais na sala.", **payload}), 404
+        flash("Aluno já não está mais na sala.", "warning")
+        return redirect(url_for("html_bp.professor_sala", turma_id=turma_id))
+
+    try:
+        nome_aluno = matricula.aluno.nome if matricula.aluno else f"ID {aluno_id}"
+        for resposta in matricula.respostas:
+            resposta.matricula_id = None
+
+        db.session.flush()
+        db.session.delete(matricula)
+        db.session.commit()
+
+        turma_atualizada = Turma.query.get_or_404(turma_id)
+        payload = emitir_atualizacao_turma(turma_atualizada)
+        emit_professor_dashboard_update(session["usuario"]["id"])
+
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": True, "message": f"Aluno {nome_aluno} removido da sala.", **payload})
+
+        flash(f"Aluno {nome_aluno} removido da sala.", "success")
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Erro ao remover aluno da sala pelo professor.")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": False, "message": "Não foi possível remover o aluno agora."}), 500
+        flash("Não foi possível remover o aluno agora.", "danger")
+
+    return redirect(url_for("html_bp.professor_sala", turma_id=turma_id))
 
 
 # 🔹 Rota para sair da turma

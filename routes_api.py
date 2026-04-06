@@ -520,7 +520,7 @@ def turma_result(turma_id):
 def api_sala_espera(turma_id):
     turma = Turma.query.get_or_404(turma_id)
     alunos = [
-        {"nome": m.aluno.nome, "email": m.aluno.email, "pronto": m.pronto}
+        {"aluno_id": m.aluno_id, "nome": m.aluno.nome, "email": m.aluno.email, "pronto": m.pronto}
         for m in Matricula.query.filter_by(turma_id=turma.id).all()
     ]
     return jsonify({

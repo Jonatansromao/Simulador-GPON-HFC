@@ -53,16 +53,21 @@
         {% if alunos %}
           <ul class="list-group list-group-flush">
             {% for aluno in alunos %}
-              <li class="list-group-item d-flex justify-content-between align-items-center">
+              <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
                 <div>
                   <strong>{{ aluno.nome }}</strong>
                   {% if aluno.email %}
                     <br><small class="text-muted">{{ aluno.email }}</small>
                   {% endif %}
                 </div>
-                <span class="badge {% if aluno.pronto %}bg-success{% else %}bg-warning text-dark{% endif %}">
-                  {% if aluno.pronto %}Pronto{% else %}Aguardando{% endif %}
-                </span>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge {% if aluno.pronto %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                    {% if aluno.pronto %}Pronto{% else %}Aguardando{% endif %}
+                  </span>
+                  <button type="button" class="btn btn-outline-danger btn-sm btn-remover-aluno" data-aluno-id="{{ aluno.aluno_id }}" data-aluno-nome="{{ aluno.nome }}">
+                    🗑 Remover
+                  </button>
+                </div>
               </li>
             {% endfor %}
           </ul>
@@ -96,7 +101,8 @@
 
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
-  const turmaId = Number(document.getElementById('professor-sala-app')?.dataset.turmaId || 0);
+  const salaRoot = document.getElementById('professor-sala-app');
+  const turmaId = Number((salaRoot && salaRoot.dataset.turmaId) || 0);
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -125,14 +131,17 @@
     container.innerHTML = `
       <ul class="list-group list-group-flush">
         ${alunos.map((aluno) => `
-          <li class="list-group-item d-flex justify-content-between align-items-center">
+          <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
             <div>
               <strong>${escapeHtml(aluno.nome)}</strong>
               ${aluno.email ? `<br><small class="text-muted">${escapeHtml(aluno.email)}</small>` : ''}
             </div>
-            <span class="badge ${aluno.pronto ? 'bg-success' : 'bg-warning text-dark'}">
-              ${aluno.pronto ? 'Pronto' : 'Aguardando'}
-            </span>
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge ${aluno.pronto ? 'bg-success' : 'bg-warning text-dark'}">
+                ${aluno.pronto ? 'Pronto' : 'Aguardando'}
+              </span>
+              <button type="button" class="btn btn-outline-danger btn-sm btn-remover-aluno" data-aluno-id="${aluno.aluno_id}" data-aluno-nome="${escapeHtml(aluno.nome)}">🗑 Remover</button>
+            </div>
           </li>
         `).join('')}
       </ul>
@@ -147,6 +156,28 @@
       statusEl.textContent = status || 'aguardando';
     }
     renderListaAlunos(Array.isArray(data.alunos) ? data.alunos : []);
+  }
+
+  async function removerAlunoSala(alunoId, nomeAluno) {
+    if (!confirm(`Remover ${nomeAluno} desta sala?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/professor/turma/${turmaId}/remover_aluno/${alunoId}`, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        alert(data.message || 'Não foi possível remover o aluno da sala.');
+        return;
+      }
+      applySalaUpdate({ id: turmaId, ...data });
+    } catch (error) {
+      console.error('Erro ao remover aluno da sala:', error);
+      alert('Erro inesperado ao remover o aluno da sala.');
+    }
   }
 
   async function syncSalaProfessor() {
@@ -170,6 +201,12 @@
 
   socket.on('status_turma_atualizado', applySalaUpdate);
   socket.on('alunos_prontos_atualizado', applySalaUpdate);
+
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('.btn-remover-aluno');
+    if (!button) return;
+    removerAlunoSala(button.dataset.alunoId, button.dataset.alunoNome || 'o aluno');
+  });
 
   syncSalaProfessor();
   window.setInterval(syncSalaProfessor, 3000);
