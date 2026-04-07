@@ -624,9 +624,18 @@ def admin_dashboard():
     total_turmas = Turma.query.count()
     premium_ativos = sum(1 for professor in Professor.query.all() if professor.is_premium_active())
     alunos_pendentes = Aluno.query.filter_by(approval_status="pending").order_by(Aluno.nome.asc()).all()
-    pagamentos_pendentes = Payment.query.filter(
+
+    pagamentos_pendentes = []
+    pagamentos_vistos = set()
+    for pagamento in Payment.query.filter(
         Payment.status.in_(["pending", "processing", "in_process"])
-    ).order_by(Payment.created_at.desc()).limit(10).all()
+    ).order_by(Payment.created_at.desc()).all():
+        if pagamento.professor_id in pagamentos_vistos:
+            continue
+        pagamentos_pendentes.append(pagamento)
+        pagamentos_vistos.add(pagamento.professor_id)
+        if len(pagamentos_pendentes) >= 10:
+            break
 
     professores_data = []
     for professor in Professor.query.order_by(Professor.nome.asc()).all():
@@ -1980,65 +1989,69 @@ def professor_premium():
         elif is_active:
             subscription_status = "Premium"
 
-    # Gerar PIX QR code (fallback)
+    # Exibição padrão do PIX (sem criar cobrança pendente automaticamente)
     qr_code, pix_code = generate_pix_qrcode(250.00)
     pix_data = get_pix_display_data()
 
-    # Tentar criar PIX direto no Mercado Pago
     pix_payment_id = None
     pix_ticket_url = None
     mercadopago_error_message = None
-    try:
-        if professor:
-            if MercadoPagoGateway.is_configured():
-                mp_payment = Payment(
-                    professor_id=professor.id,
-                    method="mercadopago",
-                    amount=250.00,
-                    status="pending",
-                    description="Pagamento Mercado Pago para assinatura premium",
-                    created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow(),
-                )
-                db.session.add(mp_payment)
-                db.session.commit()
-
-                pix_result = MercadoPagoGateway.criar_pagamento_pix(
-                    professor.email,
-                    250.00,
-                    mp_payment.id,
-                    professor.nome,
-                )
-                if pix_result.get("success"):
-                    pix_payment_id = pix_result.get("payment_id")
-                    pix_ticket_url = pix_result.get("ticket_url")
-                    if pix_result.get("qr_code"):
-                        pix_code = pix_result.get("qr_code")
-                    if pix_result.get("qr_code_base64"):
-                        qr_code = f"data:image/png;base64,{pix_result.get('qr_code_base64')}"
-                    mp_payment.external_ref = str(pix_payment_id)
-                    db.session.commit()
-                else:
-                    mercadopago_error_message = pix_result.get("error")
-
-            else:
-                mercadopago_error_message = (
-                    "Mercado Pago não está configurado. Defina MERCADOPAGO_ACCESS_TOKEN."
-                )
-    except Exception as e:
-        mercadopago_error_message = f"Erro ao criar pagamento Mercado Pago: {e}"
-        print(mercadopago_error_message)
-        if 'mp_payment' in locals():
-            db.session.delete(mp_payment)
-            db.session.commit()
-
     pending_payment = None
+
     if professor:
         pending_payment = Payment.query.filter(
             Payment.professor_id == professor.id,
-            Payment.method.in_(["pix", "mercadopago"]),
-            Payment.status == "pending"
+            Payment.method.in_(["pix", "mercadopago", "stripe_pix"]),
+            Payment.status.in_(["pending", "processing", "in_process"])
         ).order_by(Payment.created_at.desc()).first()
+
+        pending_mp_payment = Payment.query.filter(
+            Payment.professor_id == professor.id,
+            Payment.method == "mercadopago",
+            Payment.status.in_(["pending", "processing", "in_process"]),
+            Payment.external_ref.isnot(None)
+        ).order_by(Payment.created_at.desc()).first()
+
+        if pending_mp_payment and MercadoPagoGateway.is_configured():
+            external_ref = (pending_mp_payment.external_ref or "").strip()
+            if external_ref.isdigit():
+                mp_result = MercadoPagoGateway.obter_pagamento(external_ref)
+                if mp_result.get("success"):
+                    mp_info = mp_result.get("payment", {})
+                    mp_status = (mp_info.get("status") or "").lower()
+                    transaction_data = ((mp_info.get("point_of_interaction") or {}).get("transaction_data") or {})
+
+                    pix_payment_id = mp_info.get("id")
+                    pix_ticket_url = transaction_data.get("ticket_url")
+                    if transaction_data.get("qr_code"):
+                        pix_code = transaction_data.get("qr_code")
+                    if transaction_data.get("qr_code_base64"):
+                        qr_code = f"data:image/png;base64,{transaction_data.get('qr_code_base64')}"
+
+                    if mp_status == "approved" and pending_mp_payment.status != "completed":
+                        pending_mp_payment.status = "completed"
+                        pending_mp_payment.updated_at = datetime.utcnow()
+
+                        if not professor.is_admin:
+                            if professor.premium_expires_at and professor.premium_expires_at > datetime.utcnow():
+                                professor.premium_expires_at = professor.premium_expires_at + timedelta(days=30)
+                            else:
+                                professor.premium_expires_at = datetime.utcnow() + timedelta(days=30)
+                            professor.is_premium = True
+
+                        db.session.commit()
+                        is_active = professor.is_premium_active()
+                        subscription_status = "VIP Vitalício" if professor.is_admin else "Premium"
+                        expires_at = "Vitalício" if professor.is_admin else (
+                            professor.premium_expires_at.strftime("%d/%m/%Y") if professor.premium_expires_at else None
+                        )
+                        pending_payment = None
+                else:
+                    mercadopago_error_message = mp_result.get("error")
+        elif not MercadoPagoGateway.is_configured():
+            mercadopago_error_message = (
+                "Mercado Pago não está configurado. Defina MERCADOPAGO_ACCESS_TOKEN."
+            )
 
     return render_template(
         "professor_premium.html",
