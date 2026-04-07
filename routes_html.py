@@ -2153,9 +2153,9 @@ def professor_premium_sucesso_mp():
     ).order_by(Payment.updated_at.desc()).first()
 
     if recent_payment:
-        flash("🎉 Pagamento Mercado Pago confirmado com sucesso! Sua assinatura premium foi ativada.", "success")
+        flash("🎉 Pagamento com cartão confirmado com sucesso! Sua assinatura premium foi ativada automaticamente.", "success")
     else:
-        flash("Pagamento em processamento. A confirmação pode levar alguns minutos.", "info")
+        flash("Pagamento com cartão em processamento. A confirmação pode levar alguns minutos.", "info")
 
     return redirect(url_for("html_bp.professor_premium"))
 
@@ -2177,9 +2177,9 @@ def professor_premium_sucesso_pix():
     ).order_by(Payment.completed_at.desc()).first()
 
     if recent_payment:
-        flash("🎉 Pagamento PIX confirmado com sucesso! Sua assinatura premium foi ativada.", "success")
+        flash("🎉 Pagamento PIX confirmado com sucesso! Sua assinatura premium foi liberada após conferência.", "success")
     else:
-        flash("Pagamento em processamento. A confirmação pode levar alguns minutos.", "info")
+        flash("Pagamento PIX em processamento. A liberação ocorrerá após conferência manual.", "info")
 
     return redirect(url_for("html_bp.professor_premium"))
 
@@ -2210,7 +2210,7 @@ def professor_pagar_pix():
     db.session.commit()
 
     flash(
-        "✅ Pagamento via PIX notificado. A assinatura será registrada como pendente e será confirmada manualmente.",
+        "✅ Pagamento via PIX enviado para conferência manual. O premium será liberado após a validação.",
         "info"
     )
     return redirect(url_for("html_bp.professor_premium"))
