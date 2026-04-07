@@ -31,7 +31,7 @@
 
   <!-- Botão para aluno -->
   <button v-if="status === 'aguardando'" @click="ficarPronto" :class="meuPronto ? 'btn btn-warning mt-3' : 'btn btn-primary mt-3'">
-    {{ meuPronto ? '↩️ Desmarcar Pronto' : '✅ Estou Pronto' }}
+    <span v-text="meuPronto ? '↩️ Desmarcar Pronto' : '✅ Estou Pronto'"></span>
   </button>
 
   <!-- Botão para sair da turma -->
