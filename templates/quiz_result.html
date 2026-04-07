@@ -90,9 +90,10 @@
 
         <!-- 🔹 Pontuação -->
         <div class="score-box">
-            <p>Sua nota: {{ nota|round(1) }}</p>
-            <p>Total de questões: {{ total }}</p>
-            <p>Acertos: {{ total_correct }} / {{ total }}</p>
+            <p><strong>Sua nota:</strong> {{ nota|default(0)|round(1) }}</p>
+            <p><strong>Total de questões:</strong> {{ total }}</p>
+            <p><strong>Acertos:</strong> {{ total_correct }} / {{ total }}</p>
+            <p><strong>Erros:</strong> {{ total_wrong|default(total - total_correct) }} / {{ total }}</p>
         </div>
 
         <!-- 🔹 Detalhes das respostas -->

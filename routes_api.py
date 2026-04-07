@@ -93,12 +93,14 @@ def build_results_from_respostas(respostas):
     total_correct = 0
     for r in respostas:
         questao = Questao.query.get(r.questao_id)
+        user_option = (r.resposta or "").strip().upper()[:1]
+        correct_option = ((questao.correta if questao else "") or "").strip().upper()[:1]
         result = {
             "question_text": questao.texto if questao else "",
-            "user_option": r.resposta,
-            "user_option_text": getattr(questao, f"opcao_{r.resposta.strip().lower()}", "") if questao and r.resposta else "",
-            "correct_option": questao.correta if questao else "",
-            "correct_option_text": getattr(questao, f"opcao_{questao.correta.strip().lower()}", "") if questao and questao.correta else "",
+            "user_option": user_option,
+            "user_option_text": getattr(questao, f"opcao_{user_option.lower()}", "") if questao and user_option else "",
+            "correct_option": correct_option,
+            "correct_option_text": getattr(questao, f"opcao_{correct_option.lower()}", "") if questao and correct_option else "",
             "correct": r.correta,
         }
         results.append(result)
@@ -480,38 +482,47 @@ def listar_matriculas():
 def turma_result(turma_id):
     turma = Turma.query.get_or_404(turma_id)
 
-    matriculas = Matricula.query.filter_by(turma_id=turma_id).all()
+    respostas = (
+        Resposta.query.filter_by(turma_id=turma_id)
+        .order_by(Resposta.data_envio.desc())
+        .all()
+    )
+
+    simulados = {}
+    for r in respostas:
+        aluno = r.aluno
+        if not aluno:
+            continue
+
+        chave = f"{aluno.id}-{r.data_envio.strftime('%Y%m%d%H%M%S')}"
+        if chave not in simulados:
+            simulados[chave] = {
+                "nome": aluno.nome,
+                "cpf": aluno.cpf,
+                "email": aluno.email,
+                "score": 0,
+                "total_correct": 0,
+                "total_questions": 0,
+                "data": format_datetime_local(r.data_envio, "%d/%m/%Y %H:%M:%S"),
+                "data_iso": r.data_envio.strftime("%Y-%m-%dT%H:%M:%S"),
+                "sheet_name": r.turma.sheet_name if r.turma and r.turma.sheet_name else "Simulado de Turma",
+                "respostas": [],
+                "results": [],
+            }
+
+        simulados[chave]["respostas"].append(r)
 
     alunos_data = []
-    for m in matriculas:
-        aluno = m.aluno
-        respostas = Resposta.query.filter_by(matricula_id=m.id).all()
+    for simulado in simulados.values():
+        results, total_questions, total_correct = build_results_from_respostas(simulado["respostas"])
+        simulado["results"] = results
+        simulado["total_questions"] = total_questions
+        simulado["total_correct"] = total_correct
+        simulado["score"] = round((total_correct / total_questions) * 10, 1) if total_questions > 0 else 0
+        del simulado["respostas"]
+        alunos_data.append(simulado)
 
-        total_questions = len(respostas)
-        total_correct = sum(1 for r in respostas if r.correta)
-        score = total_correct
-
-        aluno_info = {
-            "nome": aluno.nome,
-            "cpf": aluno.cpf,
-            "email": aluno.email,
-            "score": score,
-            "total_correct": total_correct,
-            "total_questions": total_questions,
-            "data": format_datetime_local(respostas[-1].data_envio, "%d/%m/%Y %H:%M") if respostas else "",
-            "sheet_name": turma.sheet_name,
-            "results": [
-                {
-                    "question_text": r.questao,
-                    "user_option": r.resposta,
-                    "correct_option": "✔" if r.correta else "✘",
-                    "correct": r.correta
-                }
-                for r in respostas
-            ]
-        }
-        alunos_data.append(aluno_info)
-
+    alunos_data.sort(key=lambda item: item.get("data_iso", ""), reverse=True)
     return jsonify({"alunos": alunos_data})
 
 #-----------------------------

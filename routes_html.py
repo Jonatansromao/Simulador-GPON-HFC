@@ -1630,8 +1630,11 @@ def submit_answers(turma_id):
         return redirect(url_for("html_bp.login_aluno"))
 
     aluno_id = session["usuario"]["id"]
-    data = request.get_json()
-    answers = data.get("answers", {})
+    data = request.get_json(silent=True) or {}
+    answers = data.get("answers", {}) if isinstance(data, dict) else {}
+
+    if not isinstance(answers, dict) or not answers:
+        return jsonify({"success": False, "message": "Nenhuma resposta foi recebida para correção."}), 400
 
     matricula = Matricula.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).first()
     if not matricula:
@@ -1640,47 +1643,75 @@ def submit_answers(turma_id):
 
     attempt_time = datetime.utcnow().replace(microsecond=0)
 
+    question_ids = []
+    for questao_id in answers.keys():
+        try:
+            question_ids.append(int(questao_id))
+        except (TypeError, ValueError):
+            continue
+
+    questoes = Questao.query.filter(Questao.id.in_(question_ids)).all() if question_ids else []
+    questoes_por_id = {questao.id: questao for questao in questoes}
+
     resultados = []
+    novas_respostas = []
+    total_correct = 0
+
     for questao_id, resposta_dada in answers.items():
-        questao = Questao.query.get(int(questao_id))
+        try:
+            questao = questoes_por_id.get(int(questao_id))
+        except (TypeError, ValueError):
+            questao = None
+
         if not questao:
             continue
 
-        correta = (resposta_dada.lower() == questao.correta.lower())
+        resposta_normalizada = str(resposta_dada or "").strip().upper()[:1]
+        correta_normalizada = str(questao.correta or "").strip().upper()[:1]
+        correta = bool(resposta_normalizada and correta_normalizada and resposta_normalizada == correta_normalizada)
 
-        nova_resposta = Resposta(
-            aluno_id=aluno_id,
-            turma_id=turma_id,
-            matricula_id=matricula.id,
-            questao_id=questao.id,
-            resposta=resposta_dada,
-            correta=correta,
-            banco=None,
-            tipo="turma",
-            data_envio=attempt_time,
+        if correta:
+            total_correct += 1
+
+        novas_respostas.append(
+            Resposta(
+                aluno_id=aluno_id,
+                turma_id=turma_id,
+                matricula_id=matricula.id,
+                questao_id=questao.id,
+                resposta=resposta_normalizada,
+                correta=correta,
+                banco=None,
+                tipo="turma",
+                data_envio=attempt_time,
+            )
         )
-        db.session.add(nova_resposta)
 
         resultados.append(
             {
                 "question_text": questao.texto,
-                "user_option": resposta_dada,
-                "user_option_text": getattr(questao, f"opcao_{resposta_dada.lower()}"),
-                "correct_option": questao.correta,
-                "correct_option_text": getattr(questao, f"opcao_{questao.correta.lower()}"),
+                "user_option": resposta_normalizada,
+                "user_option_text": getattr(questao, f"opcao_{resposta_normalizada.lower()}", None) if resposta_normalizada else None,
+                "correct_option": correta_normalizada,
+                "correct_option_text": getattr(questao, f"opcao_{correta_normalizada.lower()}", None) if correta_normalizada else None,
                 "correct": correta,
             }
         )
+
+    if not novas_respostas:
+        return jsonify({"success": False, "message": "Nenhuma resposta válida foi processada."}), 400
+
+    db.session.add_all(novas_respostas)
 
     # 🔹 Marca o aluno como pronto
     matricula.pronto = True
     db.session.commit()
 
     total = len(resultados)
-    total_correct = sum(1 for r in resultados if r["correct"])
+    total_wrong = max(total - total_correct, 0)
 
-    # Nota proporcional (ex: 9 acertos em 20 = 4.5)
-    nota = (total_correct / total * 10) if total > 0 else 0.0
+    # Nota proporcional para qualquer quantidade de questões
+    nota = round((total_correct / total) * 10, 1) if total > 0 else 0.0
 
     aluno = Aluno.query.get(aluno_id)
 
@@ -1701,7 +1732,16 @@ def submit_answers(turma_id):
     emitir_atualizacao_turma(turma)
 
     # 🔹 Renderiza resultado final do quiz
-    return make_no_cache_response(render_template("quiz_result.html", aluno=aluno, total=total, total_correct=total_correct, nota=nota, results=resultados, turma=turma))
+    return make_no_cache_response(render_template(
+        "quiz_result.html",
+        aluno=aluno,
+        total=total,
+        total_correct=total_correct,
+        total_wrong=total_wrong,
+        nota=nota,
+        results=resultados,
+        turma=turma,
+    ))
 
 
 # -----------------------------
@@ -1743,51 +1783,78 @@ def submit_answers_free():
         return redirect(url_for("html_bp.login_aluno"))
 
     aluno_id = session["usuario"]["id"]
-    data = request.get_json()
-    answers = data.get("answers", {})
-    banco = data.get("banco")  # "HFC" ou "GPON"
+    data = request.get_json(silent=True) or {}
+    answers = data.get("answers", {}) if isinstance(data, dict) else {}
+    banco = data.get("banco") if isinstance(data, dict) else None  # "HFC" ou "GPON"
+
+    if not isinstance(answers, dict) or not answers:
+        return jsonify({"success": False, "message": "Nenhuma resposta foi recebida para correção."}), 400
 
     attempt_time = datetime.utcnow().replace(microsecond=0)
 
+    question_ids = []
+    for questao_id in answers.keys():
+        try:
+            question_ids.append(int(questao_id))
+        except (TypeError, ValueError):
+            continue
+
+    questoes = Questao.query.filter(Questao.id.in_(question_ids)).all() if question_ids else []
+    questoes_por_id = {questao.id: questao for questao in questoes}
+
     resultados = []
+    novas_respostas = []
     total_correct = 0
 
     for questao_id, resposta_dada in answers.items():
-        questao = Questao.query.get(int(questao_id))
+        try:
+            questao = questoes_por_id.get(int(questao_id))
+        except (TypeError, ValueError):
+            questao = None
+
         if not questao:
             continue
 
-        correta = (resposta_dada == questao.correta)
+        resposta_normalizada = str(resposta_dada or "").strip().upper()[:1]
+        correta_normalizada = str(questao.correta or "").strip().upper()[:1]
+        correta = bool(resposta_normalizada and correta_normalizada and resposta_normalizada == correta_normalizada)
         if correta:
             total_correct += 1
 
-        nova_resposta = Resposta(
-            aluno_id=aluno_id,
-            turma_id=None,
-            matricula_id=None,
-            questao_id=questao.id,
-            resposta=resposta_dada,
-            correta=correta,
-            banco=banco,
-            tipo="livre",  # 🔹 marca como simulado livre
-            data_envio=attempt_time,
+        novas_respostas.append(
+            Resposta(
+                aluno_id=aluno_id,
+                turma_id=None,
+                matricula_id=None,
+                questao_id=questao.id,
+                resposta=resposta_normalizada,
+                correta=correta,
+                banco=banco,
+                tipo="livre",
+                data_envio=attempt_time,
+            )
         )
-        db.session.add(nova_resposta)
 
         resultados.append(
             {
                 "question_text": questao.texto,
-                "user_option": resposta_dada,
-                "user_option_text": getattr(questao, f"opcao_{resposta_dada.lower()}"),
-                "correct_option": questao.correta,
-                "correct_option_text": getattr(questao, f"opcao_{questao.correta.lower()}"),
+                "user_option": resposta_normalizada,
+                "user_option_text": getattr(questao, f"opcao_{resposta_normalizada.lower()}", None) if resposta_normalizada else None,
+                "correct_option": correta_normalizada,
+                "correct_option_text": getattr(questao, f"opcao_{correta_normalizada.lower()}", None) if correta_normalizada else None,
                 "correct": correta,
             }
         )
 
-    total = len(resultados)
+    if not novas_respostas:
+        return jsonify({"success": False, "message": "Nenhuma resposta válida foi processada."}), 400
 
-    # 🔹 Cálculo da nota de 0 a 10
+    db.session.add_all(novas_respostas)
+
+    total = len(resultados)
+    total_wrong = max(total - total_correct, 0)
+
+    # 🔹 Cálculo da nota de 0 a 10 para qualquer quantidade de questões
     nota = round((total_correct / total) * 10, 1) if total > 0 else 0
 
     valor_por_questao = 0.5
@@ -1814,11 +1881,12 @@ def submit_answers_free():
         score=pontuacao_obtida,
         total=total,
         total_correct=total_correct,
+        total_wrong=total_wrong,
         pontuacao_total=pontuacao_total,
         pontuacao_percentual=pontuacao_percentual,
         results=resultados,
         banco=banco,
-        nota=nota,  # 🔹 agora o template recebe a nota
+        nota=nota,
     ))
 
 
@@ -1828,21 +1896,25 @@ def submit_answers_free():
 @html_bp.route("/quiz_result/<int:turma_id>/<int:aluno_id>")
 def quiz_result(turma_id, aluno_id):
     aluno = Aluno.query.get_or_404(aluno_id)
-    respostas = Resposta.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).all()
+    respostas = Resposta.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).order_by(Resposta.data_envio.asc()).all()
 
     total = len(respostas)
     total_correct = sum(1 for r in respostas if r.correta)
-    score = total_correct  # ou outra lógica de pontuação
+    total_wrong = max(total - total_correct, 0)
+    nota = round((total_correct / total) * 10, 1) if total > 0 else 0
 
     results = []
     for r in respostas:
+        questao = r.questao
+        resposta_normalizada = str(r.resposta or "").strip().upper()[:1]
+        correta_normalizada = str(getattr(questao, "correta", "") or "").strip().upper()[:1]
         results.append(
             {
-                "question_text": r.questao,
-                "user_option": r.resposta,
-                "user_option_text": r.resposta,  # se tiver texto da opção
-                "correct_option": "✔" if r.correta else "✘",
-                "correct_option_text": r.questao,  # ou texto correto da questão
+                "question_text": questao.texto if questao else "",
+                "user_option": resposta_normalizada,
+                "user_option_text": getattr(questao, f"opcao_{resposta_normalizada.lower()}", None) if questao and resposta_normalizada else None,
+                "correct_option": correta_normalizada,
+                "correct_option_text": getattr(questao, f"opcao_{correta_normalizada.lower()}", None) if questao and correta_normalizada else None,
                 "correct": r.correta,
             }
         )
@@ -1850,7 +1922,16 @@ def quiz_result(turma_id, aluno_id):
     # 🔹 Busca a turma (se existir)
     turma = Turma.query.get(turma_id)
 
-    return render_template("quiz_result.html", aluno=aluno, score=score, total=total, total_correct=total_correct, results=results, turma=turma)
+    return render_template(
+        "quiz_result.html",
+        aluno=aluno,
+        total=total,
+        total_correct=total_correct,
+        total_wrong=total_wrong,
+        nota=nota,
+        results=results,
+        turma=turma,
+    )
 
 
 # -----------------------------
