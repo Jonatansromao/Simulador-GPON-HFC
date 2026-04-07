@@ -819,23 +819,24 @@ def aluno_pronto(turma_id):
     aluno_id = session["usuario"]["id"]
     matricula = Matricula.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).first()
     if not matricula:
-        return jsonify({"status": "erro", "mensagem": "Matrícula não encontrada para esta turma."}), 404
+        return jsonify({"success": False, "mensagem": "Matrícula não encontrada para esta turma."}), 404
 
     turma = Turma.query.get_or_404(turma_id)
 
     if turma.auto_restart_enabled and turma.status == "Encerrado":
         resetar_ciclo_automatico_turma(turma)
 
-    matricula.pronto = True
+    matricula.pronto = not bool(matricula.pronto)
+    mensagem = "Você foi marcado como pronto." if matricula.pronto else "Seu status voltou para aguardando."
 
-    if turma.auto_restart_enabled:
+    if turma.auto_restart_enabled and matricula.pronto:
         iniciar_turma_se_todos_prontos(turma)
 
     db.session.commit()
 
     payload = emitir_atualizacao_turma(turma)
 
-    return jsonify({"status": "ok", **payload})
+    return jsonify({"success": True, "mensagem": mensagem, **payload})
 
 
 # 🔹 Rota alternativa para entrar na turma via AJAX (sem redirecionar)
@@ -874,7 +875,7 @@ def aluno_entrar(turma_id):
 
     payload = emitir_atualizacao_turma(turma)
 
-    return jsonify({"status": "ok", **payload})
+    return jsonify({"success": True, **payload})
 
 
 # 🔹 Sala de espera para o aluno
@@ -883,9 +884,19 @@ def aluno_entrar(turma_id):
 def sala_espera(turma_id):
     turma = Turma.query.get_or_404(turma_id)
 
-    alunos = [{"nome": m.aluno.nome, "email": m.aluno.email, "pronto": m.pronto} for m in Matricula.query.filter_by(turma_id=turma.id).all()]
+    aluno_id_atual = session["usuario"]["id"]
+    alunos = [
+        {
+            "aluno_id": m.aluno_id,
+            "nome": m.aluno.nome,
+            "email": m.aluno.email,
+            "pronto": m.pronto,
+        }
+        for m in Matricula.query.filter_by(turma_id=turma.id).all()
+    ]
 
     questoes = [q.to_dict() for q in turma.questoes] if turma.questoes else []
+    minha_matricula = Matricula.query.filter_by(aluno_id=aluno_id_atual, turma_id=turma.id).first()
 
     return render_template(
         "sala_espera.html",
@@ -900,6 +911,8 @@ def sala_espera(turma_id):
             "AutoRestartEnabled": bool(getattr(turma, "auto_restart_enabled", False)),
         },
         alunos=alunos,
+        aluno_id_atual=aluno_id_atual,
+        meu_pronto_inicial=bool(minha_matricula.pronto) if minha_matricula else False,
     )
 
 
@@ -990,7 +1003,7 @@ def professor_remover_aluno_da_sala(turma_id, aluno_id):
 @api_login_required_aluno
 def sair_turma(turma_id):
     if "usuario" not in session or session["usuario"]["tipo"] != "aluno":
-        return jsonify({"status": "unauthorized"}), 403
+        return jsonify({"success": False, "mensagem": "Sessão do aluno não encontrada."}), 403
 
     aluno_id = session["usuario"]["id"]
     turma = Turma.query.get_or_404(turma_id)
@@ -1007,12 +1020,12 @@ def sair_turma(turma_id):
 
         payload = emitir_atualizacao_turma(turma)
         return jsonify({
-            "status": "ok",
-            "mensagem": "Você saiu da turma. Seu histórico anterior foi preservado.",
+            "success": True,
+            "mensagem": "Você saiu da turma. Seu histórico anterior foi preservado e poderá ser visto novamente ao reentrar.",
             **payload,
         })
 
-    return jsonify({"status": "ok", **build_turma_realtime_payload(turma)})
+    return jsonify({"success": True, **build_turma_realtime_payload(turma)})
 
 
 # 🔹 Histórico detalhado do aluno
