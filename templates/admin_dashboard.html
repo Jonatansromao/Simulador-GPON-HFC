@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block titulo %}Painel Administrativo{% endblock %}
+
+{% block conteudo %}
+<div class="container mt-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+      <h2 class="mb-1">🛠️ Painel Administrativo</h2>
+      <p class="text-muted mb-0">Área exclusiva do administrador para visão geral e ações globais.</p>
+    </div>
+    <a href="{{ url_for('html_bp.professor_dashboard') }}" class="btn btn-outline-secondary">← Voltar ao painel do professor</a>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-3 col-sm-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="text-muted small">Professores</div>
+          <div class="fs-3 fw-bold text-primary">{{ total_professores }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="text-muted small">Alunos</div>
+          <div class="fs-3 fw-bold text-success">{{ total_alunos }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="text-muted small">Turmas</div>
+          <div class="fs-3 fw-bold text-dark">{{ total_turmas }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="text-muted small">Premium ativos</div>
+          <div class="fs-3 fw-bold text-warning">{{ premium_ativos }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong>👨‍🏫 Gestão de Professores</strong></div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-striped align-middle mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>Professor</th>
+              <th>Turmas</th>
+              <th>Alunos</th>
+              <th>Pendentes</th>
+              <th>Status</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for professor in professores %}
+              <tr>
+                <td>
+                  <strong>{{ professor.nome }}</strong><br>
+                  <small class="text-muted">{{ professor.email }}</small>
+                </td>
+                <td>{{ professor.total_turmas }}</td>
+                <td>{{ professor.total_alunos }}</td>
+                <td>{{ professor.pendentes }}</td>
+                <td>
+                  {% if professor.is_admin %}
+                    <span class="badge bg-dark">Administrador</span>
+                  {% elif professor.premium_active %}
+                    <span class="badge bg-success">Premium</span>
+                    {% if professor.premium_expires_at %}
+                      <br><small class="text-muted">até {{ professor.premium_expires_at|datetime_local('%d/%m/%Y %H:%M') }}</small>
+                    {% endif %}
+                  {% else %}
+                    <span class="badge bg-secondary">Free</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if not professor.is_admin %}
+                    <div class="d-flex flex-wrap gap-1">
+                      <form method="POST" action="{{ url_for('html_bp.admin_toggle_premium', professor_id=professor.id) }}">
+                        <input type="hidden" name="action" value="ativar">
+                        <button type="submit" class="btn btn-outline-success btn-sm">+30 dias premium</button>
+                      </form>
+                      <form method="POST" action="{{ url_for('html_bp.admin_toggle_premium', professor_id=professor.id) }}">
+                        <input type="hidden" name="action" value="remover">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">Remover premium</button>
+                      </form>
+                    </div>
+                  {% else %}
+                    <span class="text-muted small">Conta principal</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6" class="text-center text-muted">Nenhum professor encontrado.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header"><strong>⏳ Alunos pendentes de aprovação</strong></div>
+        <div class="card-body">
+          {% if alunos_pendentes %}
+            <ul class="list-group list-group-flush">
+              {% for aluno in alunos_pendentes %}
+                <li class="list-group-item px-0">
+                  <strong>{{ aluno.nome }}</strong>
+                  <small class="text-muted d-block">{{ aluno.email }} • {{ aluno.empresa or 'Sem empresa' }}</small>
+                  <small class="text-muted">Professor: {{ aluno.professor.nome if aluno.professor else 'Não vinculado' }}</small>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted mb-0">Nenhum aluno pendente no momento.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header"><strong>💳 Pagamentos pendentes</strong></div>
+        <div class="card-body">
+          {% if pagamentos_pendentes %}
+            <ul class="list-group list-group-flush">
+              {% for pagamento in pagamentos_pendentes %}
+                <li class="list-group-item px-0">
+                  <strong>{{ pagamento.professor.nome if pagamento.professor else 'Professor não encontrado' }}</strong>
+                  <small class="text-muted d-block">{{ pagamento.method|capitalize }} • R$ {{ '%.2f'|format(pagamento.amount) }}</small>
+                  <small class="text-muted">Status: {{ pagamento.status|capitalize }} • {{ pagamento.created_at|datetime_local('%d/%m/%Y %H:%M') }}</small>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted mb-0">Nenhum pagamento pendente no momento.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

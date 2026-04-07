@@ -103,6 +103,9 @@
         <ul class="navbar-nav ms-auto">
           <li class="nav-item"><a class="nav-link" href="{{ url_for('html_bp.aluno_dashboard') }}">Painel Aluno</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('html_bp.professor_dashboard') }}">Painel Professor</a></li>
+          {% if is_admin_session %}
+            <li class="nav-item"><a class="nav-link text-warning" href="{{ url_for('html_bp.admin_dashboard') }}">Painel ADM</a></li>
+          {% endif %}
           {% if session.get('usuario') %}
             <li class="nav-item"><a class="nav-link" href="{{ url_for('html_bp.perfil') }}">Perfil</a></li>
           {% endif %}

@@ -219,6 +219,22 @@ def premium_required(f):
     return decorated_function
 
 
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "usuario" not in session or session["usuario"]["tipo"] != "professor":
+            flash("Acesso restrito ao administrador.", "danger")
+            return redirect(url_for("html_bp.login_professor"))
+
+        professor = Professor.query.get(session["usuario"]["id"])
+        if not professor or not (professor.is_admin or is_admin_email(professor.email)):
+            flash("Apenas o administrador pode acessar este painel.", "warning")
+            return redirect(url_for("html_bp.professor_dashboard"))
+
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # -----------------------------
 # Funções utilitárias de atualização em tempo real
 # -----------------------------
@@ -298,6 +314,18 @@ ADMIN_EMAILS = {
 
 def is_admin_email(email: str) -> bool:
     return bool(email and email.strip().lower() in ADMIN_EMAILS)
+
+
+@html_bp.app_context_processor
+def inject_admin_session_flag():
+    usuario = session.get("usuario") or {}
+    professor = None
+    if usuario.get("tipo") == "professor" and usuario.get("id"):
+        professor = Professor.query.get(usuario.get("id"))
+
+    return {
+        "is_admin_session": bool(professor and (professor.is_admin or is_admin_email(professor.email))),
+    }
 
 
 def generate_invite_code() -> str:
@@ -585,6 +613,71 @@ def professor_dashboard():
         alunos_vinculados=alunos_vinculados,
         total_alunos_aprovados=total_alunos_aprovados,
     )
+
+
+@html_bp.route("/admin/dashboard")
+@api_login_required_professor
+@admin_required
+def admin_dashboard():
+    total_professores = Professor.query.count()
+    total_alunos = Aluno.query.count()
+    total_turmas = Turma.query.count()
+    premium_ativos = sum(1 for professor in Professor.query.all() if professor.is_premium_active())
+    alunos_pendentes = Aluno.query.filter_by(approval_status="pending").order_by(Aluno.nome.asc()).all()
+    pagamentos_pendentes = Payment.query.filter(
+        Payment.status.in_(["pending", "processing", "in_process"])
+    ).order_by(Payment.created_at.desc()).limit(10).all()
+
+    professores_data = []
+    for professor in Professor.query.order_by(Professor.nome.asc()).all():
+        professores_data.append({
+            "id": professor.id,
+            "nome": professor.nome,
+            "email": professor.email,
+            "is_admin": professor.is_admin or is_admin_email(professor.email),
+            "premium_active": professor.is_premium_active(),
+            "premium_expires_at": professor.premium_expires_at,
+            "total_turmas": len(professor.turmas),
+            "total_alunos": Aluno.query.filter_by(professor_id=professor.id).count(),
+            "pendentes": Aluno.query.filter_by(professor_id=professor.id, approval_status="pending").count(),
+        })
+
+    return render_template(
+        "admin_dashboard.html",
+        total_professores=total_professores,
+        total_alunos=total_alunos,
+        total_turmas=total_turmas,
+        premium_ativos=premium_ativos,
+        alunos_pendentes=alunos_pendentes,
+        pagamentos_pendentes=pagamentos_pendentes,
+        professores=professores_data,
+    )
+
+
+@html_bp.route("/admin/professores/<int:professor_id>/premium", methods=["POST"])
+@api_login_required_professor
+@admin_required
+def admin_toggle_premium(professor_id):
+    professor = Professor.query.get_or_404(professor_id)
+    action = (request.form.get("action") or "toggle").strip().lower()
+
+    if professor.is_admin or is_admin_email(professor.email):
+        flash("A conta administradora mantém acesso premium permanente.", "info")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    if action == "remover":
+        professor.is_premium = False
+        professor.premium_expires_at = None
+        message = f"Premium removido do professor {professor.nome}."
+    else:
+        base_date = professor.premium_expires_at if professor.premium_expires_at and professor.premium_expires_at > datetime.utcnow() else datetime.utcnow()
+        professor.is_premium = True
+        professor.premium_expires_at = base_date + timedelta(days=30)
+        message = f"Premium ativado/estendido para {professor.nome} até {format_datetime_local(professor.premium_expires_at, '%d/%m/%Y %H:%M')}."
+
+    db.session.commit()
+    flash(message, "success")
+    return redirect(url_for("html_bp.admin_dashboard"))
 
 
 @html_bp.route("/aluno/dashboard", methods=["GET", "POST"])
