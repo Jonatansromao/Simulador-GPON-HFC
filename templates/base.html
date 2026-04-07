@@ -6,6 +6,7 @@
     <meta name="author" content="Jonatan da Silva Romao">
     <meta name="copyright" content="Jonatan da Silva Romao - Todos os direitos reservados">
     <meta name="description" content="Plataforma proprietária de autoria de Jonatan da Silva Romao, com conteúdo, layout e código-fonte protegidos por direitos autorais.">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block titulo %}Simulador HFC/GPON | Jonatan da Silva Romao{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
@@ -149,6 +150,52 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+      const ensureCsrfField = (form) => {
+        if (!form || !csrfToken) return;
+        const method = (form.getAttribute('method') || 'GET').toUpperCase();
+        if (method !== 'POST') return;
+        if (form.querySelector('input[name="_csrf_token"]')) return;
+
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = '_csrf_token';
+        input.value = csrfToken;
+        form.appendChild(input);
+      };
+
+      document.querySelectorAll('form').forEach(ensureCsrfField);
+      document.addEventListener('submit', (event) => {
+        if (event.target instanceof HTMLFormElement) {
+          ensureCsrfField(event.target);
+        }
+      });
+
+      if (window.fetch && csrfToken) {
+        const originalFetch = window.fetch.bind(window);
+        window.fetch = (resource, options = {}) => {
+          const requestOptions = options || {};
+          const method = String(requestOptions.method || 'GET').toUpperCase();
+          const requestUrl = typeof resource === 'string' ? resource : (resource?.url || '');
+          const isSameOrigin = !/^https?:\/\//i.test(requestUrl) || requestUrl.startsWith(window.location.origin);
+
+          if (!["GET", "HEAD", "OPTIONS", "TRACE"].includes(method) && isSameOrigin) {
+            const headers = new Headers(requestOptions.headers || {});
+            if (!headers.has('X-CSRF-Token')) {
+              headers.set('X-CSRF-Token', csrfToken);
+            }
+            requestOptions.headers = headers;
+          }
+
+          return originalFetch(resource, requestOptions);
+        };
+      }
+
+      if (window.axios && csrfToken) {
+        window.axios.defaults.headers.common['X-CSRF-Token'] = csrfToken;
+      }
+
       document.querySelectorAll('.toast').forEach(toastEl => {
         new bootstrap.Toast(toastEl).show();
       });
