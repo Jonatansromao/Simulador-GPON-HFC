@@ -335,6 +335,20 @@ def home_alias():
     return redirect(url_for("html_bp.home"))
 
 
+@html_bp.route("/termos")
+@html_bp.route("/termos-de-uso")
+def termos_uso():
+    """Página pública de termos de uso."""
+    return render_template("termos.html")
+
+
+@html_bp.route("/privacidade")
+@html_bp.route("/politica-de-privacidade")
+def politica_privacidade():
+    """Página pública de política de privacidade."""
+    return render_template("privacidade.html")
+
+
 # -----------------------------
 # Rotas de registro
 # -----------------------------

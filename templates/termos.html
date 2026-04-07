@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block titulo %}Termos de Uso - Simulador HFC/GPON{% endblock %}
+
+{% block conteudo %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4 p-md-5">
+                <div class="mb-4">
+                    <span class="badge bg-primary mb-2">Atualizado em 07/04/2026</span>
+                    <h1 class="h2 mb-2">📘 Termos de Uso</h1>
+                    <p class="text-muted mb-0">
+                        Estes termos regulam o uso da plataforma <strong>Simulador HFC/GPON</strong>, de autoria de
+                        <strong>Jonatan da Silva Romao</strong>.
+                    </p>
+                </div>
+
+                <div class="alert alert-light border">
+                    Ao acessar ou utilizar a plataforma, o usuário declara que leu e concorda com estes termos,
+                    bem como com a <a href="{{ url_for('html_bp.politica_privacidade') }}">Política de Privacidade</a>.
+                </div>
+
+                <h2 class="h5 mt-4">1. Finalidade da plataforma</h2>
+                <p>
+                    O Simulador HFC/GPON é uma plataforma educacional voltada à aplicação de simulados, gestão de turmas,
+                    acompanhamento de desempenho e apoio ao treinamento técnico de alunos e professores.
+                </p>
+
+                <h2 class="h5 mt-4">2. Cadastro e acesso</h2>
+                <ul>
+                    <li>O usuário deve fornecer informações verdadeiras, completas e atualizadas.</li>
+                    <li>O login é pessoal e não deve ser compartilhado com terceiros.</li>
+                    <li>O usuário é responsável pelas atividades realizadas em sua conta.</li>
+                </ul>
+
+                <h2 class="h5 mt-4">3. Uso permitido</h2>
+                <p>É permitido utilizar a plataforma exclusivamente para fins legítimos de estudo, treinamento e gestão educacional.</p>
+                <p>É vedado, entre outros comportamentos:</p>
+                <ul>
+                    <li>copiar, revender ou redistribuir conteúdo, layout ou funcionalidades sem autorização;</li>
+                    <li>tentar acessar áreas restritas sem permissão;</li>
+                    <li>praticar engenharia reversa, automações abusivas ou qualquer tentativa de fraude;</li>
+                    <li>usar a plataforma para fins ilícitos ou que prejudiquem terceiros.</li>
+                </ul>
+
+                <h2 class="h5 mt-4">4. Plano premium e pagamentos</h2>
+                <ul>
+                    <li>Os recursos premium são liberados conforme o plano contratado e o período de acesso adquirido.</li>
+                    <li>Pagamentos por <strong>cartão</strong> podem ter liberação automática após aprovação do gateway.</li>
+                    <li>Pagamentos por <strong>PIX</strong> podem depender de conferência manual para liberação.</li>
+                    <li>O acesso premium poderá ser suspenso em caso de fraude, estorno ou uso indevido.</li>
+                </ul>
+
+                <h2 class="h5 mt-4">5. Propriedade intelectual</h2>
+                <p>
+                    Todo o conteúdo da plataforma — incluindo código-fonte, banco de questões, identidade visual, textos,
+                    estrutura, relatórios e marca — é protegido e pertence ao autor, salvo indicação diversa.
+                </p>
+
+                <h2 class="h5 mt-4">6. Limitação de responsabilidade</h2>
+                <p>
+                    A plataforma é disponibilizada com foco em disponibilidade e melhoria contínua, podendo ocorrer interrupções,
+                    ajustes técnicos, manutenção programada ou falhas decorrentes de serviços de terceiros.
+                </p>
+
+                <h2 class="h5 mt-4">7. Suspensão e encerramento</h2>
+                <p>
+                    Contas que violem estes termos poderão ser suspensas ou encerradas, temporária ou definitivamente,
+                    para preservação da segurança e integridade do sistema.
+                </p>
+
+                <h2 class="h5 mt-4">8. Alterações destes termos</h2>
+                <p>
+                    Estes Termos de Uso podem ser atualizados a qualquer momento para refletir melhorias operacionais,
+                    legais ou de segurança. A versão vigente será sempre a publicada nesta página.
+                </p>
+
+                <h2 class="h5 mt-4">9. Contato</h2>
+                <p class="mb-0">
+                    Para dúvidas sobre estes termos, utilize os canais de contato informados pela plataforma ou pelo responsável do sistema.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
