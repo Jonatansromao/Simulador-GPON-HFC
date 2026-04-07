@@ -75,6 +75,20 @@
             transition: background-color 0.2s;
         }
         .btn-logout:hover { background-color: #a71d2a; }
+        .pagination-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            margin: 18px 0;
+        }
+        .pagination-info {
+            text-align: center;
+            color: #555;
+            font-size: 0.92rem;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -97,27 +111,48 @@
         </div>
 
         <!-- 🔹 Detalhes das respostas -->
-        {% for result in results %}
-        <div class="response-container">
-            <p class="question-text">{{ result['question_text'] }}</p>
-            <div class="response-details">
-                {% if result['correct'] %}
-                    <p class="correct">✔ Você acertou!</p>
-                    <p class="correct">
-                        <strong>Resposta correta:</strong> {{ result['correct_option']|upper }}) {{ result['correct_option_text'] }}
-                    </p>
-                {% else %}
-                    <p class="incorrect">✘ Você errou.</p>
-                    <p class="incorrect">
-                        <strong>Sua resposta:</strong> {{ result['user_option']|upper }}) {{ result['user_option_text'] }}
-                    </p>
-                    <p class="correct">
-                        <strong>Resposta correta:</strong> {{ result['correct_option']|upper }}) {{ result['correct_option_text'] }}
-                    </p>
-                {% endif %}
+        {% set page_size = 25 %}
+        {% set total_pages = ((results|length + page_size - 1) // page_size) if results else 1 %}
+
+        {% if results|length > page_size %}
+        <div class="pagination-info">
+            Exibindo {{ page_size }} questões por página para facilitar a leitura deste resultado grande.
+        </div>
+        {% endif %}
+
+        {% for page in range(total_pages) %}
+        <div class="result-page" data-page="{{ page + 1 }}" {% if page != 0 %}style="display:none;"{% endif %}>
+            {% for result in results[page * page_size:(page + 1) * page_size] %}
+            <div class="response-container">
+                <p class="question-text">{{ (page * page_size) + loop.index }}. {{ result['question_text'] }}</p>
+                <div class="response-details">
+                    {% if result['correct'] %}
+                        <p class="correct">✔ Você acertou!</p>
+                        <p class="correct">
+                            <strong>Resposta correta:</strong> {{ result['correct_option']|upper }}) {{ result['correct_option_text'] }}
+                        </p>
+                    {% else %}
+                        <p class="incorrect">✘ Você errou.</p>
+                        <p class="incorrect">
+                            <strong>Sua resposta:</strong> {{ result['user_option']|upper }}) {{ result['user_option_text'] }}
+                        </p>
+                        <p class="correct">
+                            <strong>Resposta correta:</strong> {{ result['correct_option']|upper }}) {{ result['correct_option_text'] }}
+                        </p>
+                    {% endif %}
+                </div>
             </div>
+            {% endfor %}
         </div>
         {% endfor %}
+
+        {% if total_pages > 1 %}
+        <div class="pagination-bar">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="prevPageBtn">⬅ Anterior</button>
+            <span id="pageIndicator">Página 1 de {{ total_pages }}</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="nextPageBtn">Próxima ➡</button>
+        </div>
+        {% endif %}
 
         <!-- 🔹 Botões -->
         {% if turma %}
@@ -139,5 +174,54 @@
     <p style="margin:0 0 6px 0;"><strong>© 2026 Jonatan da Silva Romao - Todos os direitos reservados.</strong></p>
     <p style="margin:0;">Sistema proprietário. É proibida a reprodução, distribuição, cópia, modificação ou uso sem autorização expressa do autor.</p>
   </footer>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const pages = Array.from(document.querySelectorAll('.result-page'));
+    if (!pages.length) return;
+
+    let currentPage = 1;
+    const totalPages = pages.length;
+    const prevBtn = document.getElementById('prevPageBtn');
+    const nextBtn = document.getElementById('nextPageBtn');
+    const indicator = document.getElementById('pageIndicator');
+
+    const updatePages = () => {
+      pages.forEach((page, index) => {
+        page.style.display = index === (currentPage - 1) ? 'block' : 'none';
+      });
+
+      if (indicator) {
+        indicator.textContent = `Página ${currentPage} de ${totalPages}`;
+      }
+      if (prevBtn) {
+        prevBtn.disabled = currentPage === 1;
+      }
+      if (nextBtn) {
+        nextBtn.disabled = currentPage === totalPages;
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage -= 1;
+          updatePages();
+        }
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+          currentPage += 1;
+          updatePages();
+        }
+      });
+    }
+
+    updatePages();
+  });
+</script>
 </body>
 </html>
