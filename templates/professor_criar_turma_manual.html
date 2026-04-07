@@ -24,6 +24,24 @@
     }
     .btn-option span { font-size: 1.5rem; }
     .list-group-item { font-size: 1rem; }
+    .selection-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      background: #eef4ff;
+      border: 1px solid #cfe2ff;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .selection-toolbar .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
   </style>
 </head>
 <body>
@@ -47,10 +65,23 @@
 
     <!-- Lista de questões -->
     <h4>Selecione as questões:</h4>
+    <div class="selection-toolbar">
+      <div>
+        <label class="form-check-label fw-semibold">
+          <input type="checkbox" class="form-check-input me-2" id="selecionar-todas">
+          Selecionar todas as questões deste banco
+        </label>
+        <div class="text-muted small">Marcadas: <span id="contador-selecionadas">0</span> de {{ questoes|length }}</div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleAllQuestions(true)">Marcar todas</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleAllQuestions(false)">Limpar seleção</button>
+      </div>
+    </div>
     <div class="list-group">
       {% for q in questoes %}
         <label class="list-group-item">
-          <input type="checkbox" name="questoes" value="{{ q.id }}">
+          <input type="checkbox" class="question-checkbox" name="questoes" value="{{ q.id }}">
           <strong>{{ q.texto }}</strong><br>
           <small>Opções: {{ q.opcoes|join(', ') }}</small>
         </label>
@@ -64,6 +95,49 @@
   </form>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  function getQuestionCheckboxes() {
+    return Array.from(document.querySelectorAll('.question-checkbox'));
+  }
+
+  function updateSelectionCount() {
+    const checkboxes = getQuestionCheckboxes();
+    const selected = checkboxes.filter(item => item.checked).length;
+    const counter = document.getElementById('contador-selecionadas');
+    const master = document.getElementById('selecionar-todas');
+
+    if (counter) {
+      counter.textContent = selected;
+    }
+    if (master) {
+      master.checked = checkboxes.length > 0 && selected === checkboxes.length;
+      master.indeterminate = selected > 0 && selected < checkboxes.length;
+    }
+  }
+
+  function toggleAllQuestions(checked) {
+    getQuestionCheckboxes().forEach(item => {
+      item.checked = checked;
+    });
+    updateSelectionCount();
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const master = document.getElementById('selecionar-todas');
+
+    if (master) {
+      master.addEventListener('change', function () {
+        toggleAllQuestions(this.checked);
+      });
+    }
+
+    getQuestionCheckboxes().forEach(item => {
+      item.addEventListener('change', updateSelectionCount);
+    });
+
+    updateSelectionCount();
+  });
+</script>
   <div style="position:fixed; right:12px; bottom:12px; z-index:9999; background:rgba(17,24,39,.92); color:#fff; padding:8px 12px; border-radius:999px; font-size:.78rem; box-shadow:0 4px 12px rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.14);">
     © Jonatan da Silva Romao
   </div>

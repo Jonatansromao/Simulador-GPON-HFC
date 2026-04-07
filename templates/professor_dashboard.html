@@ -198,6 +198,25 @@
           </div>
           <h5>Selecione as questões:</h5>
           {% raw %}
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 border rounded bg-light p-3 mb-3">
+            <div>
+              <label class="form-check-label fw-semibold">
+                <input
+                  type="checkbox"
+                  class="form-check-input me-2"
+                  :checked="todasSelecionadas"
+                  :indeterminate.prop="selecionadas.length > 0 && !todasSelecionadas"
+                  @change="toggleSelecionarTodas($event)"
+                >
+                Selecionar todas as questões deste banco
+              </label>
+              <div id="contador" class="mt-1">Questões selecionadas: {{ selecionadas.length }} / {{ questoes.length }}</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <button type="button" class="btn btn-outline-primary btn-sm" @click="selecionarTodasQuestoes">Marcar todas</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" @click="limparSelecao">Limpar seleção</button>
+            </div>
+          </div>
           <transition name="fade">
             <div id="questoesContainer" class="list-group">
               <div v-if="loading" class="spinner">
@@ -216,7 +235,6 @@
               </label>
             </div>
           </transition>
-          <div id="contador">Questões selecionadas: {{ selecionadas.length }}</div>
           {% endraw %}
           <button type="submit" class="btn btn-primary w-100 btn-option mt-3"><span>📝</span> Criar Turma Manual</button>
         </form>
@@ -494,6 +512,11 @@ createApp({
     this.carregarQuestoes();
     setTimeout(() => this.precarregarBancos(), 300);
   },
+  computed: {
+    todasSelecionadas() {
+      return this.questoes.length > 0 && this.selecionadas.length === this.questoes.length;
+    }
+  },
   methods: {
     precarregarBancos() {
       ["HFC", "GPON"].forEach((bank) => {
@@ -507,6 +530,19 @@ createApp({
             console.error(`Erro ao pré-carregar ${bank}:`, err);
           });
       });
+    },
+    selecionarTodasQuestoes() {
+      this.selecionadas = this.questoes.map(q => q.id);
+    },
+    limparSelecao() {
+      this.selecionadas = [];
+    },
+    toggleSelecionarTodas(event) {
+      if (event.target.checked) {
+        this.selecionarTodasQuestoes();
+      } else {
+        this.limparSelecao();
+      }
     },
     carregarQuestoes() {
       this.selecionadas = [];
