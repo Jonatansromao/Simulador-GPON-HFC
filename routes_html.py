@@ -256,6 +256,25 @@ def atualizar_status_turma(turma_id, novo_status):
         emitir_atualizacao_turma(turma)
 
 
+def build_professor_turma_action_response(turma, message: str, category: str = "info"):
+    payload = emitir_atualizacao_turma(turma)
+    emit_professor_dashboard_update(turma.professor_id)
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"success": True, "message": message, **payload})
+
+    flash(message, category)
+    next_url = request.form.get("next") or request.args.get("next")
+    if next_url and next_url.startswith("/"):
+        return redirect(next_url)
+
+    referrer = request.referrer or ""
+    if f"/professor/sala/{turma.id}" in referrer:
+        return redirect(url_for("html_bp.professor_sala", turma_id=turma.id))
+
+    return redirect(url_for("html_bp.professor_dashboard"))
+
+
 @html_bp.route("/")
 def home():
     """Página inicial"""
@@ -1155,12 +1174,10 @@ def logout_page():
 @api_login_required_professor
 @premium_required
 def iniciar_quiz(turma_id):
-    turma = Turma.query.get_or_404(turma_id)
+    turma = Turma.query.filter_by(id=turma_id, professor_id=session["usuario"]["id"]).first_or_404()
     turma.status = "Em andamento"
     db.session.commit()
-    atualizar_status_turma(turma.id, turma.status)
-    flash("Quiz iniciado com sucesso!", "success")
-    return redirect(url_for("html_bp.professor_dashboard"))
+    return build_professor_turma_action_response(turma, "Quiz iniciado com sucesso!", "success")
 
 
 @html_bp.route("/start_quiz")
@@ -1202,45 +1219,36 @@ def start_quiz_manual():
 @api_login_required_professor
 @premium_required
 def encerrar_quiz(turma_id):
-    turma = Turma.query.get_or_404(turma_id)
+    turma = Turma.query.filter_by(id=turma_id, professor_id=session["usuario"]["id"]).first_or_404()
 
-    # 🔹 2. Atualizar status da turma
     turma.status = "Encerrado"
 
-    # 🔹 3. Resetar flag "pronto" dos alunos
     for matricula in turma.matriculas:
         matricula.pronto = False
 
     db.session.commit()
 
-    # 🔹 4. Emitir evento em tempo real
-    atualizar_status_turma(turma.id, turma.status)
-
-    flash("Quiz encerrado, respostas registradas e turma marcada como encerrada.", "info")
-    return redirect(url_for("html_bp.professor_dashboard"))
+    return build_professor_turma_action_response(
+        turma,
+        "Quiz encerrado, respostas registradas e turma marcada como encerrada.",
+        "info",
+    )
 
 
 @html_bp.route("/resetar_turma/<int:turma_id>", methods=["POST"])
 @api_login_required_professor
 @premium_required
 def resetar_turma(turma_id):
-    turma = Turma.query.get_or_404(turma_id)
+    turma = Turma.query.filter_by(id=turma_id, professor_id=session["usuario"]["id"]).first_or_404()
 
-    # 🔹 1. Resetar status da turma
     turma.status = "Aguardando"
 
-    # 🔹 2. Resetar flag "pronto" de todos os alunos
     for matricula in turma.matriculas:
         matricula.pronto = False
 
-    # 🔹 3. Persistir alterações
     db.session.commit()
 
-    # 🔹 4. Emitir evento em tempo real
-    atualizar_status_turma(turma.id, turma.status)
-
-    flash("Turma reiniciada e pronta para novo ciclo.", "info")
-    return redirect(url_for("html_bp.professor_dashboard"))
+    return build_professor_turma_action_response(turma, "Turma reiniciada e pronta para novo ciclo.", "info")
 
 
 # -----------------------------

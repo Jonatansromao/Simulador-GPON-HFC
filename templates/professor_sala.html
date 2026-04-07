@@ -80,19 +80,13 @@
 
   <div class="card shadow-sm">
     <div class="card-header">⚙️ Ações rápidas</div>
-    <div class="card-body d-flex flex-wrap gap-2">
+    <div class="card-body d-flex flex-wrap gap-2" id="acoes-rapidas-container" data-status="{{ turma.status|lower }}">
       {% if turma.status == 'Aguardando' %}
-        <form method="POST" action="{{ url_for('html_bp.iniciar_quiz', turma_id=turma.id) }}">
-          <button type="submit" class="btn btn-success">▶ Iniciar quiz</button>
-        </form>
+        <button type="button" class="btn btn-success btn-acao-sala" data-action="iniciar">▶ Iniciar quiz</button>
       {% elif turma.status == 'Em andamento' %}
-        <form method="POST" action="{{ url_for('html_bp.encerrar_quiz', turma_id=turma.id) }}">
-          <button type="submit" class="btn btn-warning">⏹ Encerrar quiz</button>
-        </form>
+        <button type="button" class="btn btn-warning btn-acao-sala" data-action="encerrar">⏹ Encerrar quiz</button>
       {% elif turma.status == 'Encerrado' %}
-        <form method="POST" action="{{ url_for('html_bp.resetar_turma', turma_id=turma.id) }}">
-          <button type="submit" class="btn btn-secondary">🔄 Reiniciar turma</button>
-        </form>
+        <button type="button" class="btn btn-secondary btn-acao-sala" data-action="resetar">🔄 Reiniciar turma</button>
       {% endif %}
       <a href="{{ url_for('html_bp.turma_result', turma_id=turma.id) }}" class="btn btn-primary">📊 Ver resultados</a>
     </div>
@@ -148,6 +142,23 @@
     `;
   }
 
+  function renderAcoesRapidas(status) {
+    const container = document.getElementById('acoes-rapidas-container');
+    if (!container) return;
+
+    let actionButton = '';
+    if (status === 'aguardando') {
+      actionButton = '<button type="button" class="btn btn-success btn-acao-sala" data-action="iniciar">▶ Iniciar quiz</button>';
+    } else if (status === 'em andamento') {
+      actionButton = '<button type="button" class="btn btn-warning btn-acao-sala" data-action="encerrar">⏹ Encerrar quiz</button>';
+    } else if (status === 'encerrado') {
+      actionButton = '<button type="button" class="btn btn-secondary btn-acao-sala" data-action="resetar">🔄 Reiniciar turma</button>';
+    }
+
+    container.dataset.status = status;
+    container.innerHTML = `${actionButton}<a href="/turma_result/${turmaId}" class="btn btn-primary">📊 Ver resultados</a>`;
+  }
+
   function applySalaUpdate(data) {
     if (!data || Number(data.id || turmaId) !== turmaId) return;
     const status = (data.status || '').toLowerCase();
@@ -155,7 +166,34 @@
     if (statusEl) {
       statusEl.textContent = status || 'aguardando';
     }
+    renderAcoesRapidas(status || 'aguardando');
     renderListaAlunos(Array.isArray(data.alunos) ? data.alunos : []);
+  }
+
+  async function executarAcaoSala(action) {
+    const routes = {
+      iniciar: `/iniciar_quiz/${turmaId}`,
+      encerrar: `/encerrar_quiz/${turmaId}`,
+      resetar: `/resetar_turma/${turmaId}`,
+    };
+
+    if (!routes[action]) return;
+
+    try {
+      const response = await fetch(routes[action], {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        alert(data.message || 'Não foi possível atualizar a sala agora.');
+        return;
+      }
+      applySalaUpdate({ id: turmaId, ...data });
+    } catch (error) {
+      console.error('Erro ao executar ação da sala:', error);
+      alert('Erro inesperado ao atualizar a sala.');
+    }
   }
 
   async function removerAlunoSala(alunoId, nomeAluno) {
@@ -203,11 +241,19 @@
   socket.on('alunos_prontos_atualizado', applySalaUpdate);
 
   document.addEventListener('click', (event) => {
-    const button = event.target.closest('.btn-remover-aluno');
-    if (!button) return;
-    removerAlunoSala(button.dataset.alunoId, button.dataset.alunoNome || 'o aluno');
+    const removeButton = event.target.closest('.btn-remover-aluno');
+    if (removeButton) {
+      removerAlunoSala(removeButton.dataset.alunoId, removeButton.dataset.alunoNome || 'o aluno');
+      return;
+    }
+
+    const actionButton = event.target.closest('.btn-acao-sala');
+    if (actionButton) {
+      executarAcaoSala(actionButton.dataset.action);
+    }
   });
 
+  renderAcoesRapidas((document.getElementById('acoes-rapidas-container')?.dataset.status || 'aguardando').toLowerCase());
   syncSalaProfessor();
   window.setInterval(syncSalaProfessor, 3000);
 </script>
