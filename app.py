@@ -72,6 +72,14 @@ def ensure_schema_updates():
             "UPDATE alunos SET approval_status = 'approved' WHERE approval_status IS NULL OR approval_status = ''"
         )
 
+    if "turmas" in tables:
+        turma_columns = {col["name"] for col in inspector.get_columns("turmas")}
+        if "auto_restart_enabled" not in turma_columns:
+            execute_statement("ALTER TABLE turmas ADD COLUMN auto_restart_enabled BOOLEAN DEFAULT FALSE")
+        execute_statement(
+            "UPDATE turmas SET auto_restart_enabled = FALSE WHERE auto_restart_enabled IS NULL"
+        )
+
 
 def ensure_question_banks_loaded():
     from models import Questao

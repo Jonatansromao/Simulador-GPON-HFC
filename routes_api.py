@@ -529,7 +529,8 @@ def api_sala_espera(turma_id):
         "prontos": sum(1 for aluno in alunos if aluno.get("pronto")),
         "total": len(alunos),
         "sheet_name": turma.sheet_name,
-        "questoes": [q.id for q in turma.questoes] if turma.questoes else []
+        "questoes": [q.id for q in turma.questoes] if turma.questoes else [],
+        "auto_restart_enabled": bool(getattr(turma, "auto_restart_enabled", False)),
     })
 
 # -----------------------------

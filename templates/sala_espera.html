@@ -44,9 +44,16 @@
     📜 Ver meu histórico nesta turma
   </a>
 
+  <div class="alert alert-warning mt-3" v-if="auto_restart_enabled">
+    ⚡ Modo automático ativo nesta sala: quando todos os alunos ficarem prontos, o quiz começará sozinho e ficará pronto para novo ciclo sem depender do professor.
+  </div>
+
   <!-- Mensagem de status -->
-  <div class="alert alert-info mt-4" v-if="status === 'aguardando'">
+  <div class="alert alert-info mt-4" v-if="status === 'aguardando' && !auto_restart_enabled">
     Aguardando o professor iniciar o quiz...
+  </div>
+  <div class="alert alert-info mt-4" v-if="status === 'aguardando' && auto_restart_enabled">
+    Assim que todos ficarem prontos, o sistema iniciará o quiz automaticamente.
   </div>
   <div class="alert alert-success mt-4" v-if="status === 'em andamento'">
     O professor iniciou! Você será redirecionado...
@@ -68,6 +75,7 @@ const app = new Vue({
     status: "{{ turma['Status']|lower }}",
     sheet_name: "{{ turma['Sheet'] if turma['Sheet'] else '' }}",
     questoes: {{ turma['Questoes']|tojson if turma['Questoes'] else '[]' }},
+    auto_restart_enabled: {{ 'true' if turma['AutoRestartEnabled'] else 'false' }},
     syncInterval: null,
     enviandoPronto: false,
     socket: null
@@ -92,6 +100,7 @@ const app = new Vue({
         this.status = (data.status || this.status || 'aguardando').toLowerCase();
         this.sheet_name = data.sheet_name || this.sheet_name || '';
         this.questoes = Array.isArray(data.questoes) ? data.questoes : [];
+        this.auto_restart_enabled = Boolean(data.auto_restart_enabled);
         this.redirecionarSeNecessario();
       } catch (error) {
         console.error('Erro ao sincronizar sala de espera:', error);

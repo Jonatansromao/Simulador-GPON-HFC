@@ -178,6 +178,11 @@
               <option value="GPON">GPON</option>
             </select>
           </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="autoRestartAleatoria" name="auto_restart_enabled" value="1">
+            <label class="form-check-label" for="autoRestartAleatoria">Ativar modo automático nesta sala</label>
+            <div class="text-muted small">Quando todos os alunos ficarem prontos, o quiz inicia sozinho e a sala volta a ficar pronta para novo ciclo sem depender do professor.</div>
+          </div>
           <button type="submit" class="btn btn-success w-100 btn-option"><span>🎲</span> Gerar Avaliação Aleatória</button>
         </form>
       </div>
@@ -195,6 +200,11 @@
               <option value="HFC">HFC</option>
               <option value="GPON">GPON</option>
             </select>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="autoRestartManual" name="auto_restart_enabled" value="1">
+            <label class="form-check-label" for="autoRestartManual">Ativar modo automático nesta sala</label>
+            <div class="text-muted small">Ideal para a turma específica em que os alunos podem refazer sem você precisar iniciar ou reiniciar manualmente.</div>
           </div>
           <h5>Selecione as questões:</h5>
           {% raw %}
@@ -266,7 +276,12 @@
           <td>{{ turma.disciplina }}</td>
           <td>{{ turma.data.strftime("%d/%m/%Y") if turma.data else "" }}</td>
           <td>{{ turma.sheet_name }}</td>
-          <td>{{ turma.status }}</td>
+          <td>
+            {{ turma.status }}
+            {% if turma.auto_restart_enabled %}
+              <br><span class="badge bg-info text-dark mt-1">Automático</span>
+            {% endif %}
+          </td>
           <td>{{ turma.alunos|length }}</td>
           <td>{{ turma.prontos }}</td>
           <td>

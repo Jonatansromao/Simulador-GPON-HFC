@@ -254,6 +254,7 @@ def build_turma_realtime_payload(turma):
         "prontos": sum(1 for m in turma.matriculas if m.pronto),
         "total": len(turma.matriculas),
         "alunos": alunos_data,
+        "auto_restart_enabled": bool(getattr(turma, "auto_restart_enabled", False)),
     }
 
 
@@ -262,6 +263,38 @@ def emitir_atualizacao_turma(turma):
     socketio.emit("status_turma_atualizado", payload)
     socketio.emit("alunos_prontos_atualizado", payload)
     return payload
+
+
+def resetar_ciclo_automatico_turma(turma):
+    if not turma or not bool(getattr(turma, "auto_restart_enabled", False)):
+        return False
+
+    alterou = False
+    if turma.status != "Aguardando":
+        turma.status = "Aguardando"
+        alterou = True
+
+    for matricula in turma.matriculas:
+        if matricula.pronto:
+            matricula.pronto = False
+            alterou = True
+
+    return alterou
+
+
+def iniciar_turma_se_todos_prontos(turma):
+    if not turma or not bool(getattr(turma, "auto_restart_enabled", False)):
+        return False
+
+    matriculas = list(turma.matriculas)
+    if not matriculas:
+        return False
+
+    if turma.status == "Aguardando" and all(bool(m.pronto) for m in matriculas):
+        turma.status = "Em andamento"
+        return True
+
+    return False
 
 
 def atualizar_status_turma(turma_id, novo_status):
@@ -515,6 +548,7 @@ def professor_dashboard():
                 professor_id=professor_id,
                 status="Aguardando",
                 sheet_name=banco,
+                auto_restart_enabled=bool(request.form.get("auto_restart_enabled")),
             )
             db.session.add(turma)
             db.session.flush()
@@ -773,10 +807,18 @@ def aluno_pronto(turma_id):
     if not matricula:
         return jsonify({"status": "erro", "mensagem": "Matrícula não encontrada para esta turma."}), 404
 
+    turma = Turma.query.get_or_404(turma_id)
+
+    if turma.auto_restart_enabled and turma.status == "Encerrado":
+        resetar_ciclo_automatico_turma(turma)
+
     matricula.pronto = True
+
+    if turma.auto_restart_enabled:
+        iniciar_turma_se_todos_prontos(turma)
+
     db.session.commit()
 
-    turma = Turma.query.get_or_404(turma_id)
     payload = emitir_atualizacao_turma(turma)
 
     return jsonify({"status": "ok", **payload})
@@ -805,6 +847,10 @@ def aluno_entrar(turma_id):
         matricula = Matricula(aluno_id=aluno_id, turma_id=turma_id, pronto=False)
         db.session.add(matricula)
 
+    turma = Turma.query.get_or_404(turma_id)
+    if turma.auto_restart_enabled and turma.status == "Encerrado":
+        resetar_ciclo_automatico_turma(turma)
+
     db.session.commit()
 
     for turma_antiga_id in turmas_afetadas:
@@ -812,7 +858,6 @@ def aluno_entrar(turma_id):
         if turma_antiga:
             emitir_atualizacao_turma(turma_antiga)
 
-    turma = Turma.query.get_or_404(turma_id)
     payload = emitir_atualizacao_turma(turma)
 
     return jsonify({"status": "ok", **payload})
@@ -838,6 +883,7 @@ def sala_espera(turma_id):
             "Status": turma.status,
             "Sheet": turma.sheet_name,
             "Questoes": questoes,
+            "AutoRestartEnabled": bool(getattr(turma, "auto_restart_enabled", False)),
         },
         alunos=alunos,
     )
@@ -858,6 +904,25 @@ def professor_sala(turma_id):
         prontos=payload["prontos"],
         status=(payload["status"] or "Aguardando").lower(),
     )
+
+
+@html_bp.route("/professor/turma/<int:turma_id>/toggle_auto_restart", methods=["POST"])
+@api_login_required_professor
+@premium_required
+def professor_toggle_auto_restart_turma(turma_id):
+    turma = Turma.query.filter_by(id=turma_id, professor_id=session["usuario"]["id"]).first_or_404()
+
+    turma.auto_restart_enabled = not bool(turma.auto_restart_enabled)
+    if turma.auto_restart_enabled:
+        if turma.status == "Encerrado":
+            resetar_ciclo_automatico_turma(turma)
+        iniciar_turma_se_todos_prontos(turma)
+        message = f"Modo automático ativado para a turma {turma.nome}."
+    else:
+        message = f"Modo automático desativado para a turma {turma.nome}."
+
+    db.session.commit()
+    return build_professor_turma_action_response(turma, message, "success")
 
 
 @html_bp.route("/professor/turma/<int:turma_id>/remover_aluno/<int:aluno_id>", methods=["POST"])
@@ -1611,8 +1676,12 @@ def submit_answers(turma_id):
     todos_finalizaram = all(m.pronto for m in matriculas)
 
     if todos_finalizaram:
-        turma.status = "Encerrado"
-        db.session.commit()
+        if turma.auto_restart_enabled:
+            resetar_ciclo_automatico_turma(turma)
+        else:
+            turma.status = "Encerrado"
+
+    db.session.commit()
 
     # 🔹 Atualiza sala/painel em tempo real com status e contadores
     emitir_atualizacao_turma(turma)

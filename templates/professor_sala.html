@@ -3,7 +3,7 @@
 {% block titulo %}Sala da Turma - Professor{% endblock %}
 
 {% block conteudo %}
-<div class="container mt-4" id="professor-sala-app" data-turma-id="{{ turma.id }}">
+<div class="container mt-4" id="professor-sala-app" data-turma-id="{{ turma.id }}" data-auto-enabled="{{ 'true' if turma.auto_restart_enabled else 'false' }}">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
       <h2 class="mb-1">👨‍🏫 Acompanhamento da Sala</h2>
@@ -39,6 +39,20 @@
           <h6 class="text-muted">Alunos prontos</h6>
           <div id="prontos-sala" class="fs-5 fw-bold text-success">{{ prontos }}</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert {{ 'alert-success' if turma.auto_restart_enabled else 'alert-secondary' }} d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <strong>⚡ Modo automático desta sala:</strong>
+      <span id="auto-mode-label">{{ 'Ativo' if turma.auto_restart_enabled else 'Desativado' }}</span>
+      <div class="small mt-1" id="auto-mode-help">
+        {% if turma.auto_restart_enabled %}
+          Quando todos os alunos ficarem prontos, o quiz inicia sozinho e a sala volta a ficar pronta para um novo ciclo sem intervenção do professor.
+        {% else %}
+          O professor ainda controla manualmente iniciar, encerrar e reiniciar a turma.
+        {% endif %}
       </div>
     </div>
   </div>
@@ -97,6 +111,7 @@
 <script>
   const salaRoot = document.getElementById('professor-sala-app');
   const turmaId = Number((salaRoot && salaRoot.dataset.turmaId) || 0);
+  let autoModeEnabled = salaRoot?.dataset.autoEnabled === 'true';
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -142,6 +157,28 @@
     `;
   }
 
+  function renderModoAutomatico(enabled) {
+    const label = document.getElementById('auto-mode-label');
+    const help = document.getElementById('auto-mode-help');
+    const alertBox = label?.closest('.alert');
+
+    if (label) {
+      label.textContent = enabled ? 'Ativo' : 'Desativado';
+    }
+    if (help) {
+      help.textContent = enabled
+        ? 'Quando todos os alunos ficarem prontos, o quiz inicia sozinho e a sala volta a ficar pronta para um novo ciclo sem intervenção do professor.'
+        : 'O professor ainda controla manualmente iniciar, encerrar e reiniciar a turma.';
+    }
+    if (alertBox) {
+      alertBox.classList.toggle('alert-success', enabled);
+      alertBox.classList.toggle('alert-secondary', !enabled);
+    }
+    if (salaRoot) {
+      salaRoot.dataset.autoEnabled = enabled ? 'true' : 'false';
+    }
+  }
+
   function renderAcoesRapidas(status) {
     const container = document.getElementById('acoes-rapidas-container');
     if (!container) return;
@@ -155,17 +192,25 @@
       actionButton = '<button type="button" class="btn btn-secondary btn-acao-sala" data-action="resetar">🔄 Reiniciar turma</button>';
     }
 
+    const autoButton = autoModeEnabled
+      ? '<button type="button" class="btn btn-outline-dark btn-acao-sala" data-action="toggle-auto">⚡ Desativar modo automático</button>'
+      : '<button type="button" class="btn btn-outline-info btn-acao-sala" data-action="toggle-auto">⚡ Ativar modo automático</button>';
+
     container.dataset.status = status;
-    container.innerHTML = `${actionButton}<a href="/turma_result/${turmaId}" class="btn btn-primary">📊 Ver resultados</a>`;
+    container.innerHTML = `${actionButton}${autoButton}<a href="/turma_result/${turmaId}" class="btn btn-primary">📊 Ver resultados</a>`;
   }
 
   function applySalaUpdate(data) {
     if (!data || Number(data.id || turmaId) !== turmaId) return;
     const status = (data.status || '').toLowerCase();
+    if (typeof data.auto_restart_enabled !== 'undefined') {
+      autoModeEnabled = Boolean(data.auto_restart_enabled);
+    }
     const statusEl = document.getElementById('status-sala');
     if (statusEl) {
       statusEl.textContent = status || 'aguardando';
     }
+    renderModoAutomatico(autoModeEnabled);
     renderAcoesRapidas(status || 'aguardando');
     renderListaAlunos(Array.isArray(data.alunos) ? data.alunos : []);
   }
@@ -175,6 +220,7 @@
       iniciar: `/iniciar_quiz/${turmaId}`,
       encerrar: `/encerrar_quiz/${turmaId}`,
       resetar: `/resetar_turma/${turmaId}`,
+      'toggle-auto': `/professor/turma/${turmaId}/toggle_auto_restart`,
     };
 
     if (!routes[action]) return;
@@ -253,6 +299,7 @@
     }
   });
 
+  renderModoAutomatico(autoModeEnabled);
   renderAcoesRapidas((document.getElementById('acoes-rapidas-container')?.dataset.status || 'aguardando').toLowerCase());
   syncSalaProfessor();
   window.setInterval(syncSalaProfessor, 3000);
