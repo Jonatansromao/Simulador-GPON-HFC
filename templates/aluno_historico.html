@@ -212,21 +212,26 @@ createApp({
             }
 
             this.chart = new Chart(canvas, {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels: [...this.resultados].reverse().map((r, idx) => `Tentativa ${idx + 1}`),
                     datasets: [{
-                        label: 'Nota',
+                        label: 'Pontuação',
                         data: [...this.resultados].reverse().map(r => Number(r.score || 0)),
-                        borderColor: '#0d6efd',
-                        backgroundColor: 'rgba(13, 110, 253, 0.15)',
-                        fill: true,
-                        tension: 0.25,
+                        backgroundColor: '#002f66',
+                        borderColor: '#002f66',
+                        borderWidth: 1,
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Pontuação por Tentativa'
+                        }
+                    },
                     scales: {
                         y: { beginAtZero: true, max: 10 }
                     }
