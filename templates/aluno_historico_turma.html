@@ -25,6 +25,11 @@
         }
         .correct { color: #28a745; font-weight: bold; }
         .incorrect { color: #dc3545; font-weight: bold; }
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            min-height: 280px;
+        }
     </style>
 </head>
 <body>
@@ -45,7 +50,9 @@
                 <div class="card shadow-sm h-100">
                     <div class="card-body">
                         <h5 class="card-title">📈 Evolução de desempenho na turma</h5>
-                        <canvas id="grafico-historico-turma" height="110"></canvas>
+                        <div class="chart-wrapper">
+                            <canvas id="grafico-historico-turma"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -233,13 +240,13 @@ createApp({
             .then(response => {
                 this.resultados = response.data.resultados || [];
                 this.atualizarResumo();
-                this.$nextTick(() => this.renderizarGrafico());
             })
             .catch(error => {
                 console.error("Erro ao carregar histórico da turma:", error);
             })
             .finally(() => {
                 this.loading = false;
+                this.$nextTick(() => this.renderizarGrafico());
             });
     }
 }).mount('#app');

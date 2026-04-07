@@ -41,6 +41,11 @@
             padding: 4px 8px;
             border-radius: 6px;
         }
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            min-height: 280px;
+        }
     </style>
 </head>
 <body>
@@ -61,7 +66,9 @@
                 <div class="card shadow-sm h-100">
                     <div class="card-body">
                         <h5 class="card-title">📈 Evolução das notas</h5>
-                        <canvas id="grafico-historico-livre" height="110"></canvas>
+                        <div class="chart-wrapper">
+                            <canvas id="grafico-historico-livre"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -254,13 +261,13 @@ createApp({
             .then(response => {
                 this.resultados = response.data.resultados || [];
                 this.atualizarResumo();
-                this.$nextTick(() => this.renderizarGrafico());
             })
             .catch(error => {
                 console.error("Erro ao carregar histórico:", error);
             })
             .finally(() => {
                 this.loading = false;
+                this.$nextTick(() => this.renderizarGrafico());
             });
     }
 }).mount('#app');
