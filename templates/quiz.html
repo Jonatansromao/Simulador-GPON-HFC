@@ -76,6 +76,9 @@
 
 <div id="app" class="quiz-container">
     {% raw %}
+    <div v-if="statusMessage" class="alert alert-info">
+        {{ statusMessage }}
+    </div>
     <div v-if="questions.length > 0">
         <!-- Texto da questão -->
         <div class="question-box">
@@ -123,66 +126,143 @@ new Vue({
         questions: [],
         answers: {},
         storageKey: "",
+        progressKey: "",
         safeRedirect: "",
-        pageShowHandler: null
+        pageShowHandler: null,
+        beforeUnloadHandler: null,
+        statusMessage: ""
     },
     mounted() {
         {% if turma_id is defined %}
             this.storageKey = `quiz-finished-turma-{{ turma_id }}`;
+            this.progressKey = `quiz-progress-turma-{{ turma_id }}-aluno-{{ session.get('usuario', {}).get('id', 'anon') }}`;
             this.safeRedirect = "{{ url_for('html_bp.voltar_painel') }}";
         {% else %}
             this.storageKey = `quiz-finished-livre-{{ banco }}`;
+            this.progressKey = `quiz-progress-livre-{{ banco }}-aluno-{{ session.get('usuario', {}).get('id', 'anon') }}`;
             this.safeRedirect = "{{ url_for('html_bp.aluno_dashboard') }}";
         {% endif %}
 
         if (sessionStorage.getItem(this.storageKey)) {
+            this.clearProgress();
             window.location.replace(this.safeRedirect);
             return;
         }
 
         this.pageShowHandler = () => this.handlePageShow();
+        this.beforeUnloadHandler = () => this.saveProgress();
         window.addEventListener("pageshow", this.pageShowHandler);
+        window.addEventListener("beforeunload", this.beforeUnloadHandler);
+
+        const savedProgress = this.getSavedProgress();
+
         {% if turma_id is defined %}
             // 🔹 Se for turma, já vem do backend
             this.questions = {{ questoes|default([])|tojson }};
             this.total = this.questions.length;
+            this.restoreSavedProgress(savedProgress);
+            this.saveProgress();
         {% else %}
-            // 🔹 Se for simulado livre, busca via API
+            // 🔹 Se for simulado livre, busca via API ou restaura tentativa salva
             const banco = "{{ banco }}";
-            axios.get(`/get_questoes/${banco}`)
-                .then(response => {
-                    if (response.data.erro) {
-                        console.error("Erro:", response.data.erro);
+            if (savedProgress && Array.isArray(savedProgress.questions) && savedProgress.questions.length > 0) {
+                this.questions = savedProgress.questions;
+                this.total = this.questions.length;
+                this.restoreSavedProgress(savedProgress);
+            } else {
+                axios.get(`/get_questoes/${banco}`)
+                    .then(response => {
+                        if (response.data.erro) {
+                            console.error("Erro:", response.data.erro);
+                            this.questions = [];
+                        } else {
+                            this.questions = response.data;
+                            this.total = this.questions.length;
+                            this.saveProgress();
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Erro ao carregar questões:", err);
                         this.questions = [];
-                    } else {
-                        this.questions = response.data;
-                        this.total = this.questions.length;
-                    }
-                })
-                .catch(err => {
-                    console.error("Erro ao carregar questões:", err);
-                    this.questions = [];
-                });
+                    });
+            }
         {% endif %}
     },
     methods: {
+        getSavedProgress() {
+            if (!this.progressKey) return null;
+            try {
+                const raw = localStorage.getItem(this.progressKey);
+                return raw ? JSON.parse(raw) : null;
+            } catch (error) {
+                console.error('Erro ao ler progresso salvo:', error);
+                return null;
+            }
+        },
+        saveProgress() {
+            if (!this.progressKey || !Array.isArray(this.questions) || !this.questions.length) return;
+            try {
+                localStorage.setItem(this.progressKey, JSON.stringify({
+                    current: this.current,
+                    total: this.total,
+                    answers: this.answers,
+                    questions: this.questions,
+                    savedAt: Date.now(),
+                }));
+            } catch (error) {
+                console.error('Erro ao salvar progresso do quiz:', error);
+            }
+        },
+        restoreSavedProgress(savedProgress = null) {
+            const progress = savedProgress || this.getSavedProgress();
+            if (!progress) return;
+
+            if (progress.answers && typeof progress.answers === 'object') {
+                this.answers = progress.answers;
+            }
+            if (Array.isArray(progress.questions) && progress.questions.length && !this.questions.length) {
+                this.questions = progress.questions;
+                this.total = this.questions.length;
+            }
+            if (typeof progress.current === 'number') {
+                const maxIndex = Math.max((this.questions.length || 1) - 1, 0);
+                this.current = Math.min(Math.max(progress.current, 0), maxIndex);
+            }
+            this.statusMessage = 'Progresso recuperado automaticamente de onde você parou.';
+        },
+        clearProgress() {
+            if (!this.progressKey) return;
+            try {
+                localStorage.removeItem(this.progressKey);
+            } catch (error) {
+                console.error('Erro ao limpar progresso salvo:', error);
+            }
+        },
         handlePageShow() {
             if (this.storageKey && sessionStorage.getItem(this.storageKey)) {
+                this.clearProgress();
                 window.location.replace(this.safeRedirect || "/aluno/dashboard");
             }
         },
         selectOption(qid, letra) {
             this.$set(this.answers, qid, letra);
+            this.saveProgress();
         },
         next() {
             if (!this.answers[this.questions[this.current].id]) {
                 alert("Você precisa selecionar uma opção antes de avançar!");
                 return;
             }
-            if (this.current < this.total - 1) this.current++;
+            if (this.current < this.total - 1) {
+                this.current++;
+                this.saveProgress();
+            }
         },
         previous() {
-            if (this.current > 0) this.current--;
+            if (this.current > 0) {
+                this.current--;
+                this.saveProgress();
+            }
         },
         finish() {
             if (!this.answers[this.questions[this.current].id]) {
@@ -205,6 +285,7 @@ new Vue({
             })
             .then(response => response.text())
             .then(html => {
+                this.clearProgress();
                 if (this.storageKey) {
                     sessionStorage.setItem(this.storageKey, "1");
                 }
@@ -220,6 +301,9 @@ new Vue({
     beforeDestroy() {
         if (this.pageShowHandler) {
             window.removeEventListener("pageshow", this.pageShowHandler);
+        }
+        if (this.beforeUnloadHandler) {
+            window.removeEventListener("beforeunload", this.beforeUnloadHandler);
         }
     }
 });

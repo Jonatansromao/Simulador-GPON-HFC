@@ -80,7 +80,7 @@
     </div>
 
     <!-- Resultados -->
-    <div v-else-if="resultados.length > 0" class="table-responsive">
+    <div v-if="resultados.length > 0" class="table-responsive mt-4">
         <table class="table table-striped table-bordered">
             <thead class="table-dark">
                 <tr>
@@ -119,7 +119,7 @@
                         </td>
                     </tr>
                     <tr :id="'detalhes'+idx" class="collapse">
-                        <td colspan="7">
+                        <td colspan="8">
                             <div v-if="r.results && r.results.length > 0">
                                 <div v-for="(res, i) in r.results" :key="i" class="question-box">
                                     <p><strong>[[ i+1 ]]. [[ res.question_text ]]</strong></p>
