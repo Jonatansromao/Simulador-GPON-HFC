@@ -412,6 +412,7 @@
   let alunosErrosChart = null;
   let performanceInsights = {};
   let selectedTemaAtual = null;
+  let temaFilterBound = false;
 
   function updateExportLinks(temaNome) {
     const suffix = temaNome ? `?tema=${encodeURIComponent(temaNome)}` : "";
@@ -484,11 +485,14 @@
   }
 
   function setupTemaFilterButtons() {
-    document.querySelectorAll('.tema-filter-btn').forEach((button) => {
-      button.addEventListener('click', () => {
-        renderSelectedThemeDetails(button.dataset.tema);
-      });
+    if (temaFilterBound) return;
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest('.tema-filter-btn');
+      if (!button) return;
+      event.preventDefault();
+      renderSelectedThemeDetails(button.dataset.tema);
     });
+    temaFilterBound = true;
   }
 
   function renderPerformanceCharts() {
@@ -573,7 +577,6 @@
     renderSelectedThemeDetails(performanceInsights.tema_padrao || (temas[0] && temas[0].tema));
   }
 
-  renderPerformanceCharts();
   function renderizarAcoesTurma(data) {
     let html = `
       <div class="btn-group btn-group-sm" role="group" aria-label="Ações">
@@ -840,6 +843,10 @@ createApp({
     }
   }
 }).mount('#app');
+
+window.requestAnimationFrame(() => {
+  renderPerformanceCharts();
+});
 
 // Função global para excluir turma via fetch
 function excluirTurma(id) {
