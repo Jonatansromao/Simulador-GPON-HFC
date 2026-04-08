@@ -131,6 +131,8 @@
     </table>
   </div>
 
+  {% set erros_detalhados_relatorio = tema_selecionado.erros_detalhados if report_scope == 'tema' and tema_selecionado else performance_insights.erros_detalhados %}
+
   {% if tema_selecionado %}
   <div class="card">
     <h2 style="margin-top:0;">Tema em destaque: {{ tema_selecionado.tema }}</h2>
@@ -185,6 +187,36 @@
     </table>
   </div>
   {% endif %}
+
+  <div class="card">
+    <h2 style="margin-top:0;">Erros detalhados {{ 'do tema selecionado' if report_scope == 'tema' and tema_selecionado else 'gerais' }}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Aluno</th>
+          <th>Tema</th>
+          <th>Pergunta</th>
+          <th>Marcada</th>
+          <th>Correta</th>
+          <th>Data</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in erros_detalhados_relatorio %}
+        <tr>
+          <td>{{ item.aluno_nome }}</td>
+          <td>{{ item.tema }}</td>
+          <td>{{ item.texto }}</td>
+          <td>{{ item.resposta_marcada }}</td>
+          <td>{{ item.resposta_correta }}</td>
+          <td>{{ item.data_envio or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">Sem erros detalhados disponíveis.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
   <script>
     window.addEventListener('load', () => {

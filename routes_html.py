@@ -89,6 +89,81 @@ def normalize_topic_text(value: str) -> str:
     return " ".join(normalized.lower().split())
 
 
+def build_question_option_map(questao) -> dict:
+    return {
+        "A": (getattr(questao, "opcao_a", None) or "").strip(),
+        "B": (getattr(questao, "opcao_b", None) or "").strip(),
+        "C": (getattr(questao, "opcao_c", None) or "").strip(),
+        "D": (getattr(questao, "opcao_d", None) or "").strip(),
+    }
+
+
+def describe_question_answer(questao, answer_value) -> dict:
+    raw = str(answer_value or "").strip()
+    if not raw:
+        return {
+            "label": "—",
+            "texto": "Não respondida",
+            "completa": "Não respondida",
+        }
+
+    options = build_question_option_map(questao)
+    upper_raw = raw.upper()
+    if upper_raw[:1] in options and (len(raw) <= 3 or raw[1:2] in {")", ".", ":", "-"}):
+        label = upper_raw[:1]
+        option_text = options.get(label) or raw
+        return {
+            "label": label,
+            "texto": option_text,
+            "completa": f"{label}) {option_text}" if option_text else label,
+        }
+
+    normalized_raw = normalize_topic_text(raw)
+    for label, option_text in options.items():
+        if option_text and normalize_topic_text(option_text) == normalized_raw:
+            return {
+                "label": label,
+                "texto": option_text,
+                "completa": f"{label}) {option_text}",
+            }
+
+    if upper_raw[:1] in options and options.get(upper_raw[:1]):
+        label = upper_raw[:1]
+        option_text = options.get(label) or raw
+        return {
+            "label": label,
+            "texto": option_text,
+            "completa": f"{label}) {option_text}",
+        }
+
+    return {
+        "label": raw,
+        "texto": raw,
+        "completa": raw,
+    }
+
+
+def build_error_detail(resposta, aluno, questao, tema: str) -> dict:
+    resposta_marcada = describe_question_answer(questao, getattr(resposta, "resposta", None))
+    resposta_correta = describe_question_answer(questao, getattr(questao, "correta", None))
+    data_envio = getattr(resposta, "data_envio", None)
+
+    return {
+        "aluno_id": aluno.id,
+        "aluno_nome": aluno.nome,
+        "questao_id": questao.id,
+        "texto": questao.texto,
+        "tema": tema,
+        "resposta_marcada": resposta_marcada["completa"],
+        "resposta_marcada_label": resposta_marcada["label"],
+        "resposta_marcada_texto": resposta_marcada["texto"],
+        "resposta_correta": resposta_correta["completa"],
+        "resposta_correta_label": resposta_correta["label"],
+        "resposta_correta_texto": resposta_correta["texto"],
+        "data_envio": format_datetime_local(data_envio) if data_envio else None,
+    }
+
+
 def infer_question_theme(questao) -> str:
     tema_explicito = getattr(questao, "tema", None)
     if tema_explicito and str(tema_explicito).strip():
@@ -124,6 +199,7 @@ def build_professor_performance_insights(professor_id: int) -> dict:
         .join(Aluno, Resposta.aluno_id == Aluno.id)
         .join(Questao, Resposta.questao_id == Questao.id)
         .filter(Aluno.professor_id == professor_id)
+        .order_by(Resposta.data_envio.desc(), Resposta.id.desc())
         .all()
     )
 
@@ -136,6 +212,7 @@ def build_professor_performance_insights(professor_id: int) -> dict:
             "tema_padrao": None,
             "alunos_detalhes": {},
             "aluno_padrao": None,
+            "erros_detalhados": [],
         }
 
     temas = defaultdict(
@@ -145,11 +222,13 @@ def build_professor_performance_insights(professor_id: int) -> dict:
             "alunos": set(),
             "alunos_stats": {},
             "questoes_stats": {},
+            "erros_detalhados": [],
         }
     )
     alunos = {}
     questoes = {}
     alunos_detalhes = {}
+    erros_detalhados_gerais = []
 
     for resposta in respostas:
         aluno = resposta.aluno
@@ -184,6 +263,7 @@ def build_professor_performance_insights(professor_id: int) -> dict:
                 "percentual_erro": 0.0,
                 "temas": {},
                 "questoes_stats": {},
+                "erros_detalhados": [],
             },
         )
         aluno_detalhe["total"] += 1
@@ -196,13 +276,29 @@ def build_professor_performance_insights(professor_id: int) -> dict:
 
         questao_item = questoes.setdefault(
             questao.id,
-            {"texto": questao.texto, "tema": tema, "erros": 0, "total": 0, "percentual_erro": 0.0},
+            {
+                "texto": questao.texto,
+                "tema": tema,
+                "erros": 0,
+                "total": 0,
+                "percentual_erro": 0.0,
+                "alternativas_erradas": {},
+                "ultimo_erro": None,
+            },
         )
         questao_item["total"] += 1
 
         questao_tema_item = tema_item["questoes_stats"].setdefault(
             questao.id,
-            {"texto": questao.texto, "erros": 0, "total": 0, "percentual_erro": 0.0},
+            {
+                "texto": questao.texto,
+                "tema": tema,
+                "erros": 0,
+                "total": 0,
+                "percentual_erro": 0.0,
+                "alternativas_erradas": {},
+                "ultimo_erro": None,
+            },
         )
         questao_tema_item["total"] += 1
 
@@ -215,11 +311,16 @@ def build_professor_performance_insights(professor_id: int) -> dict:
                 "erros": 0,
                 "total": 0,
                 "percentual_erro": 0.0,
+                "alternativas_erradas": {},
+                "ultimo_erro": None,
+                "erros_detalhados": [],
             },
         )
         aluno_questao_detalhe["total"] += 1
 
         if not bool(resposta.correta):
+            erro_detalhado = build_error_detail(resposta, aluno, questao, tema)
+
             tema_item["erros"] += 1
             aluno_item["erros"] += 1
             aluno_tema_item["erros"] += 1
@@ -228,6 +329,21 @@ def build_professor_performance_insights(professor_id: int) -> dict:
             aluno_detalhe["erros"] += 1
             aluno_tema_detalhe["erros"] += 1
             aluno_questao_detalhe["erros"] += 1
+
+            tema_item["erros_detalhados"].append(erro_detalhado)
+            aluno_detalhe["erros_detalhados"].append(erro_detalhado)
+            aluno_questao_detalhe["erros_detalhados"].append(erro_detalhado)
+            erros_detalhados_gerais.append(erro_detalhado)
+
+            for bucket in (questao_item, questao_tema_item, aluno_questao_detalhe):
+                bucket["ultimo_erro"] = erro_detalhado
+                resposta_chave = erro_detalhado["resposta_marcada"]
+                alternativas = bucket.setdefault("alternativas_erradas", {})
+                item_alt = alternativas.setdefault(
+                    resposta_chave,
+                    {"resposta": resposta_chave, "quantidade": 0},
+                )
+                item_alt["quantidade"] += 1
 
     temas_ordenados = []
     for tema, valores in temas.items():
@@ -250,9 +366,15 @@ def build_professor_performance_insights(professor_id: int) -> dict:
         for questao_valores in valores["questoes_stats"].values():
             total_questao = questao_valores["total"]
             erros_questao = questao_valores["erros"]
+            alternativas_erradas = sorted(
+                questao_valores.get("alternativas_erradas", {}).values(),
+                key=lambda item: (-item["quantidade"], item["resposta"]),
+            )
             registro = {
                 **questao_valores,
                 "percentual_erro": round((erros_questao / total_questao) * 100, 1) if total_questao else 0.0,
+                "alternativas_erradas": alternativas_erradas[:3],
+                "ultimo_erro": questao_valores.get("ultimo_erro"),
             }
             if erros_questao:
                 top_questoes.append(registro)
@@ -266,6 +388,7 @@ def build_professor_performance_insights(professor_id: int) -> dict:
             "percentual_erro": round((erros / total) * 100, 1) if total else 0.0,
             "top_alunos": top_alunos[:5],
             "top_questoes": top_questoes[:5],
+            "erros_detalhados": valores.get("erros_detalhados", [])[:20],
         })
     temas_ordenados.sort(key=lambda item: (-item["erros"], -item["percentual_erro"], item["tema"]))
 
@@ -298,9 +421,16 @@ def build_professor_performance_insights(professor_id: int) -> dict:
         for questao_valores in valores["questoes_stats"].values():
             total_questao = questao_valores["total"]
             erros_questao = questao_valores["erros"]
+            alternativas_erradas = sorted(
+                questao_valores.get("alternativas_erradas", {}).values(),
+                key=lambda item: (-item["quantidade"], item["resposta"]),
+            )
             registro = {
                 **questao_valores,
                 "percentual_erro": round((erros_questao / total_questao) * 100, 1) if total_questao else 0.0,
+                "alternativas_erradas": alternativas_erradas[:3],
+                "ultimo_erro": questao_valores.get("ultimo_erro"),
+                "erros_detalhados": (questao_valores.get("erros_detalhados") or [])[:5],
             }
             if erros_questao:
                 questoes_aluno.append(registro)
@@ -314,6 +444,7 @@ def build_professor_performance_insights(professor_id: int) -> dict:
             "percentual_erro": round((erros / total) * 100, 1) if total else 0.0,
             "temas": temas_aluno[:8],
             "questoes_erradas": questoes_aluno[:10],
+            "erros_detalhados": (valores.get("erros_detalhados") or [])[:20],
         }
 
     questoes_criticas = []
@@ -333,6 +464,7 @@ def build_professor_performance_insights(professor_id: int) -> dict:
         "tema_padrao": temas_ordenados[0]["tema"] if temas_ordenados else None,
         "alunos_detalhes": alunos_detalhes_formatados,
         "aluno_padrao": alunos_ordenados[0]["id"] if alunos_ordenados else None,
+        "erros_detalhados": erros_detalhados_gerais,
     }
 
 
@@ -369,6 +501,7 @@ def get_selected_student_insight(
 
     resultado = dict(aluno)
     questoes_filtradas = list(resultado.get("questoes_erradas") or [])
+    erros_filtrados = list(resultado.get("erros_detalhados") or [])
     tema_detalhe = None
     normalized_theme = normalize_topic_text(selected_theme)
 
@@ -385,9 +518,14 @@ def get_selected_student_insight(
             item for item in questoes_filtradas
             if normalize_topic_text(item.get("tema")) == normalized_theme
         ]
+        erros_filtrados = [
+            item for item in erros_filtrados
+            if normalize_topic_text(item.get("tema")) == normalized_theme
+        ]
 
     resultado["tema_selecionado"] = tema_detalhe
     resultado["questoes_filtradas"] = questoes_filtradas[:10]
+    resultado["erros_filtrados"] = erros_filtrados[:20]
     return resultado
 
 
@@ -1010,6 +1148,14 @@ def professor_relatorio_temas_excel():
     tema_selecionado = None
     if scope_param == "tema" and tema_param:
         tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
+        if tema_selecionado:
+            tema_selecionado = {
+                **tema_selecionado,
+                "erros_detalhados": [
+                    item for item in (performance_insights.get("erros_detalhados") or [])
+                    if normalize_topic_text(item.get("tema")) == normalize_topic_text(tema_selecionado.get("tema"))
+                ],
+            }
 
     content = render_template(
         "professor_relatorio_excel.html",
@@ -1040,6 +1186,14 @@ def professor_relatorio_temas_pdf():
     tema_selecionado = None
     if scope_param == "tema" and tema_param:
         tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
+        if tema_selecionado:
+            tema_selecionado = {
+                **tema_selecionado,
+                "erros_detalhados": [
+                    item for item in (performance_insights.get("erros_detalhados") or [])
+                    if normalize_topic_text(item.get("tema")) == normalize_topic_text(tema_selecionado.get("tema"))
+                ],
+            }
 
     return render_template(
         "professor_relatorio_pdf.html",

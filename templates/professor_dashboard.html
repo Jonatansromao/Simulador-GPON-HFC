@@ -269,6 +269,14 @@
                       <span class="badge bg-danger">{{ item.erros }} erro(s)</span>
                     </div>
                     <div class="small mt-1">{{ item.texto }}</div>
+                    {% if item.alternativas_erradas %}
+                      <div class="small text-danger">Mais marcada errada: {{ item.alternativas_erradas[0].resposta }}{% if item.alternativas_erradas[0].quantidade %} ({{ item.alternativas_erradas[0].quantidade }}x){% endif %}</div>
+                    {% elif item.ultimo_erro %}
+                      <div class="small text-danger">Marcada: {{ item.ultimo_erro.resposta_marcada }}</div>
+                    {% endif %}
+                    {% if item.ultimo_erro %}
+                      <div class="small text-success">Correta: {{ item.ultimo_erro.resposta_correta }}</div>
+                    {% endif %}
                     <div class="text-muted small">Taxa de erro: {{ item.percentual_erro }}%</div>
                   </div>
                 {% endfor %}
@@ -386,6 +394,13 @@
                         <span class="badge bg-danger">{{ item.erros }} erro(s)</span>
                       </div>
                       <div class="small mt-1">{{ item.texto }}</div>
+                      {% if item.ultimo_erro %}
+                        <div class="small text-danger">Marcou: {{ item.ultimo_erro.resposta_marcada }}</div>
+                        <div class="small text-success">Correta: {{ item.ultimo_erro.resposta_correta }}</div>
+                        {% if item.ultimo_erro.data_envio %}
+                          <div class="text-muted small">Último erro em: {{ item.ultimo_erro.data_envio }}</div>
+                        {% endif %}
+                      {% endif %}
                       <div class="text-muted small">Taxa de erro: {{ item.percentual_erro }}% em {{ item.total }} tentativa(s)</div>
                     </div>
                   {% endfor %}
@@ -866,16 +881,23 @@
     }
     if (list) {
       if (theme?.top_questoes?.length) {
-        list.innerHTML = theme.top_questoes.map((item) => `
+        list.innerHTML = theme.top_questoes.map((item) => {
+          const alternativaErrada = item.alternativas_erradas?.[0];
+          const respostaErrada = alternativaErrada ? `<div class="small text-danger">Mais marcada errada: ${escapeHtml(alternativaErrada.resposta)}${alternativaErrada.quantidade ? ` (${alternativaErrada.quantidade}x)` : ""}</div>` : (item.ultimo_erro?.resposta_marcada ? `<div class="small text-danger">Marcada: ${escapeHtml(item.ultimo_erro.resposta_marcada)}</div>` : "");
+          const respostaCorreta = item.ultimo_erro?.resposta_correta ? `<div class="small text-success">Correta: ${escapeHtml(item.ultimo_erro.resposta_correta)}</div>` : "";
+          return `
           <div class="list-group-item px-0 bg-transparent">
             <div class="d-flex justify-content-between gap-2">
               <strong>${escapeHtml(theme.tema)}</strong>
               <span class="badge bg-danger">${item.erros} erro(s)</span>
             </div>
             <div class="small mt-1">${escapeHtml(item.texto)}</div>
+            ${respostaErrada}
+            ${respostaCorreta}
             <div class="text-muted small">Taxa de erro: ${item.percentual_erro}%</div>
           </div>
-        `).join("");
+        `;
+        }).join("");
       } else {
         list.innerHTML = '<p class="text-muted mb-0">Selecione um tema para ver as perguntas mais erradas desse assunto.</p>';
       }
@@ -970,16 +992,24 @@
     const filteredQuestions = (student.questoes_erradas || []).filter((item) => !selectedTheme || item.tema === selectedTheme.tema);
     if (questionsList) {
       if (filteredQuestions.length) {
-        questionsList.innerHTML = `<div class="list-group list-group-flush">${filteredQuestions.slice(0, 10).map((item) => `
+        questionsList.innerHTML = `<div class="list-group list-group-flush">${filteredQuestions.slice(0, 10).map((item) => {
+          const marcada = item.ultimo_erro?.resposta_marcada ? `<div class="small text-danger">Marcou: ${escapeHtml(item.ultimo_erro.resposta_marcada)}</div>` : "";
+          const correta = item.ultimo_erro?.resposta_correta ? `<div class="small text-success">Correta: ${escapeHtml(item.ultimo_erro.resposta_correta)}</div>` : "";
+          const dataErro = item.ultimo_erro?.data_envio ? `<div class="text-muted small">Último erro em: ${escapeHtml(item.ultimo_erro.data_envio)}</div>` : "";
+          return `
           <div class="list-group-item px-0 bg-transparent">
             <div class="d-flex justify-content-between gap-2">
               <strong>${escapeHtml(item.tema)}</strong>
               <span class="badge bg-danger">${item.erros} erro(s)</span>
             </div>
             <div class="small mt-1">${escapeHtml(item.texto)}</div>
+            ${marcada}
+            ${correta}
+            ${dataErro}
             <div class="text-muted small">Taxa de erro: ${item.percentual_erro}% em ${item.total} tentativa(s)</div>
           </div>
-        `).join("")}</div>`;
+        `;
+        }).join("")}</div>`;
       } else {
         questionsList.innerHTML = '<p class="text-muted mb-0">Esse aluno não possui erros registrados no filtro atual.</p>';
       }
