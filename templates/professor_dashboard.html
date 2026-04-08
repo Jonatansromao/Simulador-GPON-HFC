@@ -90,7 +90,7 @@
       <h4 class="mb-0">👥 Alunos vinculados</h4>
       <div class="d-flex align-items-center flex-wrap gap-2">
         <span class="badge bg-secondary" id="alunos-vinculados-count">{{ alunos_vinculados|length }} aluno(s)</span>
-        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#alunosVinculadosCollapse" aria-expanded="true" aria-controls="alunosVinculadosCollapse">
+        <button id="toggleAlunosVinculadosBtn" class="btn btn-outline-secondary btn-sm" type="button" aria-expanded="true" aria-controls="alunosVinculadosCollapse">
           ↕ Expandir / diminuir
         </button>
       </div>
@@ -185,6 +185,7 @@
               <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
                   <a href="{{ url_for('html_bp.professor_dashboard', tema=item.tema, aluno=(selected_student.id if selected_student else None)) }}#detalhe-tema"
+                     data-theme-select="{{ item.tema }}"
                      class="fw-semibold text-decoration-none {{ 'text-primary' if selected_theme and selected_theme.tema == item.tema else 'text-dark' }}">
                     {{ item.tema }}
                   </a>
@@ -205,6 +206,7 @@
               <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
                   <a href="{{ url_for('html_bp.professor_dashboard', tema=(selected_theme.tema if selected_theme else None), aluno=item.id) }}#detalhe-aluno"
+                     data-student-select="{{ item.id }}"
                      class="fw-semibold text-decoration-none {{ 'text-primary' if selected_student and selected_student.id == item.id else 'text-dark' }}">
                     {{ item.nome }}
                   </a>
@@ -237,6 +239,7 @@
                   <tr>
                     <td>
                       <a href="{{ url_for('html_bp.professor_dashboard', tema=item.tema, aluno=(selected_student.id if selected_student else None)) }}#detalhe-tema"
+                         data-theme-select="{{ item.tema }}"
                          class="btn btn-sm {{ 'btn-primary' if selected_theme and selected_theme.tema == item.tema else 'btn-outline-primary' }} tema-filter-btn">
                         {{ item.tema }}
                       </a>
@@ -254,10 +257,10 @@
         <div class="col-lg-6">
           <div class="border rounded p-3 h-100 bg-light">
             <h5 class="mb-1">Perguntas mais erradas do tema</h5>
-            <small class="text-muted d-block mb-3">
+            <small id="selectedThemeQuestionsLabel" class="text-muted d-block mb-3">
               {{ selected_theme.tema if selected_theme else 'Selecione um tema na tabela ao lado' }}
             </small>
-            <div class="list-group list-group-flush">
+            <div id="selectedThemeQuestionsList" class="list-group list-group-flush">
               {% if selected_theme and selected_theme.top_questoes %}
                 {% for item in selected_theme.top_questoes %}
                   <div class="list-group-item px-0 bg-transparent">
@@ -282,17 +285,17 @@
           <div>
             <h5 class="mb-1">🎯 Alunos com mais erros no tema selecionado</h5>
             {% if selected_theme %}
-              <small class="text-muted">
+              <small id="selectedThemeSummary" class="text-muted">
                 {{ selected_theme.erros }} erro(s) em {{ selected_theme.total }} resposta(s) • taxa de {{ selected_theme.percentual_erro }}%
               </small>
             {% else %}
-              <small class="text-muted">Clique em um tema da tabela para abrir os detalhes.</small>
+              <small id="selectedThemeSummary" class="text-muted">Clique em um tema da tabela para abrir os detalhes.</small>
             {% endif %}
           </div>
-          <span class="badge bg-primary">{{ selected_theme.tema if selected_theme else 'Nenhum tema selecionado' }}</span>
+          <span id="selectedThemeBadge" class="badge bg-primary">{{ selected_theme.tema if selected_theme else 'Nenhum tema selecionado' }}</span>
         </div>
 
-        <div class="row g-3">
+        <div id="selectedThemeStudentsGrid" class="row g-3">
           {% if selected_theme and selected_theme.top_alunos %}
             {% for item in selected_theme.top_alunos %}
               <div class="col-md-6 col-xl-4">
@@ -306,7 +309,7 @@
                     <div class="progress-bar bg-warning" role="progressbar" style="width: {{ item.percentual_erro if item.percentual_erro > 3 else 3 }}%;" aria-valuenow="{{ item.percentual_erro }}" aria-valuemin="0" aria-valuemax="100"></div>
                   </div>
                   <div class="small text-muted mt-2">Taxa de erro: {{ item.percentual_erro }}%</div>
-                  <a href="{{ url_for('html_bp.professor_dashboard', tema=(selected_theme.tema if selected_theme else None), aluno=item.id) }}#detalhe-aluno" class="btn btn-sm btn-outline-warning mt-2">Ver erros detalhados</a>
+                  <a href="{{ url_for('html_bp.professor_dashboard', tema=(selected_theme.tema if selected_theme else None), aluno=item.id) }}#detalhe-aluno" data-student-select="{{ item.id }}" class="btn btn-sm btn-outline-warning mt-2">Ver erros detalhados</a>
                 </div>
               </div>
             {% endfor %}
@@ -323,28 +326,29 @@
           <div>
             <h5 class="mb-1">🔎 Detalhe do aluno selecionado</h5>
             {% if selected_student %}
-              <small class="text-muted">
+              <small id="selectedStudentSummary" class="text-muted">
                 {{ selected_student.erros }} erro(s) em {{ selected_student.total }} resposta(s) • taxa geral de {{ selected_student.percentual_erro }}%
                 {% if selected_student.tema_selecionado %}
                   • neste tema: {{ selected_student.tema_selecionado.erros }} erro(s) em {{ selected_student.tema_selecionado.total }} resposta(s)
                 {% endif %}
               </small>
             {% else %}
-              <small class="text-muted">Clique no nome de um aluno acima para ver exatamente onde ele mais erra.</small>
+              <small id="selectedStudentSummary" class="text-muted">Clique no nome de um aluno acima para ver exatamente onde ele mais erra.</small>
             {% endif %}
           </div>
-          <span class="badge bg-info text-dark">{{ selected_student.nome if selected_student else 'Nenhum aluno selecionado' }}</span>
+          <span id="selectedStudentBadge" class="badge bg-info text-dark">{{ selected_student.nome if selected_student else 'Nenhum aluno selecionado' }}</span>
         </div>
 
         <div class="row g-3">
           <div class="col-lg-5">
             <div class="border rounded p-3 h-100 bg-light">
               <h6 class="mb-3">Temas em que esse aluno mais erra</h6>
+              <div id="selectedStudentThemesList">
               {% if selected_student and selected_student.temas %}
                 {% for item in selected_student.temas %}
                   <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
-                      <span class="fw-semibold {{ 'text-primary' if selected_theme and selected_theme.tema == item.tema else 'text-dark' }}">{{ item.tema }}</span>
+                      <a href="{{ url_for('html_bp.professor_dashboard', tema=item.tema, aluno=(selected_student.id if selected_student else None)) }}#detalhe-tema" data-theme-select="{{ item.tema }}" class="fw-semibold text-decoration-none {{ 'text-primary' if selected_theme and selected_theme.tema == item.tema else 'text-dark' }}">{{ item.tema }}</a>
                       <span class="badge bg-secondary">{{ item.erros }} erro(s)</span>
                     </div>
                     <div class="progress" style="height: 10px;">
@@ -356,13 +360,14 @@
               {% else %}
                 <p class="text-muted mb-0">Selecione um aluno para abrir o resumo por tema.</p>
               {% endif %}
+              </div>
             </div>
           </div>
 
           <div class="col-lg-7">
             <div class="border rounded p-3 h-100 bg-light">
               <h6 class="mb-1">Questões que ele mais errou</h6>
-              <small class="text-muted d-block mb-3">
+              <small id="selectedStudentQuestionsLabel" class="text-muted d-block mb-3">
                 {% if selected_theme %}
                   Filtrado em: {{ selected_theme.tema }}
                 {% else %}
@@ -370,6 +375,7 @@
                 {% endif %}
               </small>
 
+              <div id="selectedStudentQuestionsList">
               {% if selected_student and selected_student.questoes_filtradas %}
                 <div class="list-group list-group-flush">
                   {% for item in selected_student.questoes_filtradas %}
@@ -388,6 +394,7 @@
               {% else %}
                 <p class="text-muted mb-0">Clique em um nome acima para ver as perguntas erradas dele.</p>
               {% endif %}
+              </div>
             </div>
           </div>
         </div>
@@ -756,7 +763,7 @@
     const scopeSelect = document.getElementById("reportScopeSelect");
     const excelBtn = document.getElementById("exportExcelBtn");
     const pdfBtn = document.getElementById("exportPdfBtn");
-    const selectedTheme = {{ (selected_theme.tema if selected_theme else None)|tojson }};
+    const selectedTheme = activeTheme;
 
     if (!scopeSelect || !excelBtn || !pdfBtn) return;
 
@@ -776,12 +783,255 @@
     pdfBtn.setAttribute("href", buildUrl(pdfBtn.getAttribute("href") || pdfBtn.href));
   }
 
+  const dashboardInsights = {{ performance_insights|tojson }};
+  let activeTheme = {{ (selected_theme.tema if selected_theme else None)|tojson }};
+  let activeStudentId = {{ (selected_student.id if selected_student else None)|tojson }};
+
+  function getThemeInsight(themeName) {
+    const temas = dashboardInsights?.temas || [];
+    if (!temas.length) return null;
+    return temas.find((item) => item.tema === themeName) || temas[0] || null;
+  }
+
+  function getStudentInsight(studentId) {
+    if (studentId === null || studentId === undefined || studentId === "") return null;
+    const detalhes = dashboardInsights?.alunos_detalhes || {};
+    return detalhes[String(studentId)] || detalhes[studentId] || null;
+  }
+
+  function updateDashboardUrl() {
+    const url = new URL(window.location.href);
+    if (activeTheme) {
+      url.searchParams.set("tema", activeTheme);
+    } else {
+      url.searchParams.delete("tema");
+    }
+    if (activeStudentId) {
+      url.searchParams.set("aluno", activeStudentId);
+    } else {
+      url.searchParams.delete("aluno");
+    }
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+  }
+
+  function renderSelectedTheme() {
+    const theme = getThemeInsight(activeTheme);
+    const label = document.getElementById("selectedThemeQuestionsLabel");
+    const list = document.getElementById("selectedThemeQuestionsList");
+    const summary = document.getElementById("selectedThemeSummary");
+    const badge = document.getElementById("selectedThemeBadge");
+    const studentsGrid = document.getElementById("selectedThemeStudentsGrid");
+    const scopeSelect = document.getElementById("reportScopeSelect");
+    const themeOption = scopeSelect?.querySelector('option[value="tema"]');
+
+    document.querySelectorAll("[data-theme-select]").forEach((element) => {
+      const isActive = element.dataset.themeSelect === (theme?.tema || "");
+      if (element.classList.contains("btn")) {
+        element.classList.toggle("btn-primary", isActive);
+        element.classList.toggle("btn-outline-primary", !isActive);
+      } else {
+        element.classList.toggle("text-primary", isActive);
+        element.classList.toggle("text-dark", !isActive);
+      }
+    });
+
+    if (label) {
+      label.textContent = theme ? theme.tema : "Selecione um tema na tabela ao lado";
+    }
+    if (summary) {
+      summary.textContent = theme
+        ? `${theme.erros} erro(s) em ${theme.total} resposta(s) • taxa de ${theme.percentual_erro}%`
+        : "Clique em um tema da tabela para abrir os detalhes.";
+    }
+    if (badge) {
+      badge.textContent = theme ? theme.tema : "Nenhum tema selecionado";
+    }
+    if (themeOption) {
+      themeOption.disabled = !theme;
+      themeOption.textContent = theme ? `Tema selecionado: ${theme.tema}` : "Tema selecionado";
+      if (scopeSelect.value === "tema" && !theme) {
+        scopeSelect.value = "geral";
+      }
+    }
+    if (list) {
+      if (theme?.top_questoes?.length) {
+        list.innerHTML = theme.top_questoes.map((item) => `
+          <div class="list-group-item px-0 bg-transparent">
+            <div class="d-flex justify-content-between gap-2">
+              <strong>${escapeHtml(theme.tema)}</strong>
+              <span class="badge bg-danger">${item.erros} erro(s)</span>
+            </div>
+            <div class="small mt-1">${escapeHtml(item.texto)}</div>
+            <div class="text-muted small">Taxa de erro: ${item.percentual_erro}%</div>
+          </div>
+        `).join("");
+      } else {
+        list.innerHTML = '<p class="text-muted mb-0">Selecione um tema para ver as perguntas mais erradas desse assunto.</p>';
+      }
+    }
+    if (studentsGrid) {
+      if (theme?.top_alunos?.length) {
+        studentsGrid.innerHTML = theme.top_alunos.map((item) => `
+          <div class="col-md-6 col-xl-4">
+            <div class="border rounded p-3 h-100 bg-light">
+              <a href="?tema=${encodeURIComponent(theme.tema)}&aluno=${item.id}#detalhe-aluno" data-student-select="${item.id}" class="fw-semibold text-decoration-none ${(String(activeStudentId) === String(item.id)) ? 'text-primary' : 'text-dark'}">${escapeHtml(item.nome)}</a>
+              <div class="text-muted small mb-2">${item.erros} erro(s) em ${item.total} resposta(s)</div>
+              <div class="progress" style="height: 10px;">
+                <div class="progress-bar bg-warning" role="progressbar" style="width: ${item.percentual_erro > 3 ? item.percentual_erro : 3}%;" aria-valuenow="${item.percentual_erro}" aria-valuemin="0" aria-valuemax="100"></div>
+              </div>
+              <div class="small text-muted mt-2">Taxa de erro: ${item.percentual_erro}%</div>
+              <a href="?tema=${encodeURIComponent(theme.tema)}&aluno=${item.id}#detalhe-aluno" data-student-select="${item.id}" class="btn btn-sm btn-outline-warning mt-2">Ver erros detalhados</a>
+            </div>
+          </div>
+        `).join("");
+      } else {
+        studentsGrid.innerHTML = '<div class="col-12"><p class="text-muted mb-0">Não há alunos com erros registrados para este tema.</p></div>';
+      }
+    }
+
+    updateReportDownloadLinks();
+  }
+
+  function renderSelectedStudent() {
+    const student = getStudentInsight(activeStudentId);
+    const selectedTheme = getThemeInsight(activeTheme);
+    const summary = document.getElementById("selectedStudentSummary");
+    const badge = document.getElementById("selectedStudentBadge");
+    const themesList = document.getElementById("selectedStudentThemesList");
+    const questionsLabel = document.getElementById("selectedStudentQuestionsLabel");
+    const questionsList = document.getElementById("selectedStudentQuestionsList");
+
+    document.querySelectorAll("[data-student-select]").forEach((element) => {
+      const isActive = String(element.dataset.studentSelect) === String(activeStudentId || "");
+      if (element.classList.contains("btn")) {
+        element.classList.toggle("btn-outline-warning", true);
+      } else {
+        element.classList.toggle("text-primary", isActive);
+        element.classList.toggle("text-dark", !isActive);
+      }
+    });
+
+    if (badge) {
+      badge.textContent = student ? student.nome : "Nenhum aluno selecionado";
+    }
+    if (questionsLabel) {
+      questionsLabel.textContent = selectedTheme
+        ? `Filtrado em: ${selectedTheme.tema}`
+        : "Exibindo todas as questões com erro desse aluno";
+    }
+
+    if (!student) {
+      if (summary) {
+        summary.textContent = "Clique no nome de um aluno acima para ver exatamente onde ele mais erra.";
+      }
+      if (themesList) {
+        themesList.innerHTML = '<p class="text-muted mb-0">Selecione um aluno para abrir o resumo por tema.</p>';
+      }
+      if (questionsList) {
+        questionsList.innerHTML = '<p class="text-muted mb-0">Clique em um nome acima para ver as perguntas erradas dele.</p>';
+      }
+      return;
+    }
+
+    const temaDoAluno = (student.temas || []).find((item) => item.tema === (selectedTheme?.tema || ""));
+    if (summary) {
+      summary.textContent = `${student.erros} erro(s) em ${student.total} resposta(s) • taxa geral de ${student.percentual_erro}%${temaDoAluno ? ` • neste tema: ${temaDoAluno.erros} erro(s) em ${temaDoAluno.total} resposta(s)` : ''}`;
+    }
+    if (themesList) {
+      if (student.temas?.length) {
+        themesList.innerHTML = student.temas.map((item) => `
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+              <a href="?tema=${encodeURIComponent(item.tema)}${activeStudentId ? `&aluno=${activeStudentId}` : ''}#detalhe-tema" data-theme-select="${escapeHtml(item.tema)}" class="fw-semibold text-decoration-none ${(selectedTheme?.tema === item.tema) ? 'text-primary' : 'text-dark'}">${escapeHtml(item.tema)}</a>
+              <span class="badge bg-secondary">${item.erros} erro(s)</span>
+            </div>
+            <div class="progress" style="height: 10px;">
+              <div class="progress-bar bg-secondary" role="progressbar" style="width: ${item.percentual_erro > 3 ? item.percentual_erro : 3}%;" aria-valuenow="${item.percentual_erro}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <small class="text-muted">${item.total} resposta(s) • taxa de erro: ${item.percentual_erro}%</small>
+          </div>
+        `).join("");
+      } else {
+        themesList.innerHTML = '<p class="text-muted mb-0">Selecione um aluno para abrir o resumo por tema.</p>';
+      }
+    }
+
+    const filteredQuestions = (student.questoes_erradas || []).filter((item) => !selectedTheme || item.tema === selectedTheme.tema);
+    if (questionsList) {
+      if (filteredQuestions.length) {
+        questionsList.innerHTML = `<div class="list-group list-group-flush">${filteredQuestions.slice(0, 10).map((item) => `
+          <div class="list-group-item px-0 bg-transparent">
+            <div class="d-flex justify-content-between gap-2">
+              <strong>${escapeHtml(item.tema)}</strong>
+              <span class="badge bg-danger">${item.erros} erro(s)</span>
+            </div>
+            <div class="small mt-1">${escapeHtml(item.texto)}</div>
+            <div class="text-muted small">Taxa de erro: ${item.percentual_erro}% em ${item.total} tentativa(s)</div>
+          </div>
+        `).join("")}</div>`;
+      } else {
+        questionsList.innerHTML = '<p class="text-muted mb-0">Esse aluno não possui erros registrados no filtro atual.</p>';
+      }
+    }
+  }
+
+  document.addEventListener("click", (event) => {
+    const themeTrigger = event.target.closest("[data-theme-select]");
+    if (themeTrigger) {
+      event.preventDefault();
+      activeTheme = themeTrigger.dataset.themeSelect || null;
+      renderSelectedTheme();
+      renderSelectedStudent();
+      updateDashboardUrl();
+      return;
+    }
+
+    const studentTrigger = event.target.closest("[data-student-select]");
+    if (studentTrigger) {
+      event.preventDefault();
+      activeStudentId = studentTrigger.dataset.studentSelect || null;
+      renderSelectedTheme();
+      renderSelectedStudent();
+      updateDashboardUrl();
+      const detalheAluno = document.getElementById("detalhe-aluno");
+      detalheAluno?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+  });
+
+  const toggleAlunosVinculadosBtn = document.getElementById("toggleAlunosVinculadosBtn");
+  const alunosVinculadosCollapse = document.getElementById("alunosVinculadosCollapse");
+  if (toggleAlunosVinculadosBtn && alunosVinculadosCollapse) {
+    const updateToggleLabel = () => {
+      const expanded = alunosVinculadosCollapse.classList.contains("show");
+      toggleAlunosVinculadosBtn.textContent = expanded ? "↕ Diminuir lista" : "↕ Expandir lista";
+      toggleAlunosVinculadosBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+    };
+
+    toggleAlunosVinculadosBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      const collapseInstance = window.bootstrap?.Collapse.getOrCreateInstance(alunosVinculadosCollapse, { toggle: false });
+      if (alunosVinculadosCollapse.classList.contains("show")) {
+        collapseInstance ? collapseInstance.hide() : alunosVinculadosCollapse.classList.remove("show");
+      } else {
+        collapseInstance ? collapseInstance.show() : alunosVinculadosCollapse.classList.add("show");
+      }
+      window.setTimeout(updateToggleLabel, 80);
+    });
+
+    alunosVinculadosCollapse.addEventListener("shown.bs.collapse", updateToggleLabel);
+    alunosVinculadosCollapse.addEventListener("hidden.bs.collapse", updateToggleLabel);
+    updateToggleLabel();
+  }
+
   const reportScopeSelect = document.getElementById("reportScopeSelect");
   if (reportScopeSelect) {
     reportScopeSelect.addEventListener("change", updateReportDownloadLinks);
     updateReportDownloadLinks();
   }
 
+  renderSelectedTheme();
+  renderSelectedStudent();
   sincronizarPainelProfessor();
   window.setInterval(sincronizarPainelProfessor, 3000);
 </script>
