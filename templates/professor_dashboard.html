@@ -90,8 +90,8 @@
       <h4 class="mb-0">👥 Alunos vinculados</h4>
       <div class="d-flex align-items-center flex-wrap gap-2">
         <span class="badge bg-secondary" id="alunos-vinculados-count">{{ alunos_vinculados|length }} aluno(s)</span>
-        <button id="toggleAlunosVinculadosBtn" class="btn btn-outline-secondary btn-sm" type="button" aria-expanded="true" aria-controls="alunosVinculadosCollapse">
-          ↕ Expandir / diminuir
+        <button id="toggleAlunosVinculadosBtn" class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleAlunosVinculados()" aria-expanded="true" aria-controls="alunosVinculadosCollapse">
+          ↕ Diminuir lista
         </button>
       </div>
     </div>
@@ -301,6 +301,7 @@
               <div class="col-md-6 col-xl-4">
                 <div class="border rounded p-3 h-100 bg-light">
                   <a href="{{ url_for('html_bp.professor_dashboard', tema=(selected_theme.tema if selected_theme else None), aluno=item.id) }}#detalhe-aluno"
+                     data-student-select="{{ item.id }}"
                      class="fw-semibold text-decoration-none {{ 'text-primary' if selected_student and selected_student.id == item.id else 'text-dark' }}">
                     {{ item.nome }}
                   </a>
@@ -610,6 +611,16 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function toggleAlunosVinculados() {
+    const painel = document.getElementById("alunosVinculadosCollapse");
+    const botao = document.getElementById("toggleAlunosVinculadosBtn");
+    if (!painel || !botao) return;
+
+    const oculto = painel.classList.toggle("d-none");
+    botao.textContent = oculto ? "↕ Expandir lista" : "↕ Diminuir lista";
+    botao.setAttribute("aria-expanded", oculto ? "false" : "true");
   }
 
   function renderSolicitacoesPendentes(alunos) {
@@ -998,31 +1009,6 @@
       return;
     }
   });
-
-  const toggleAlunosVinculadosBtn = document.getElementById("toggleAlunosVinculadosBtn");
-  const alunosVinculadosCollapse = document.getElementById("alunosVinculadosCollapse");
-  if (toggleAlunosVinculadosBtn && alunosVinculadosCollapse) {
-    const updateToggleLabel = () => {
-      const expanded = alunosVinculadosCollapse.classList.contains("show");
-      toggleAlunosVinculadosBtn.textContent = expanded ? "↕ Diminuir lista" : "↕ Expandir lista";
-      toggleAlunosVinculadosBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
-    };
-
-    toggleAlunosVinculadosBtn.addEventListener("click", (event) => {
-      event.preventDefault();
-      const collapseInstance = window.bootstrap?.Collapse.getOrCreateInstance(alunosVinculadosCollapse, { toggle: false });
-      if (alunosVinculadosCollapse.classList.contains("show")) {
-        collapseInstance ? collapseInstance.hide() : alunosVinculadosCollapse.classList.remove("show");
-      } else {
-        collapseInstance ? collapseInstance.show() : alunosVinculadosCollapse.classList.add("show");
-      }
-      window.setTimeout(updateToggleLabel, 80);
-    });
-
-    alunosVinculadosCollapse.addEventListener("shown.bs.collapse", updateToggleLabel);
-    alunosVinculadosCollapse.addEventListener("hidden.bs.collapse", updateToggleLabel);
-    updateToggleLabel();
-  }
 
   const reportScopeSelect = document.getElementById("reportScopeSelect");
   if (reportScopeSelect) {
