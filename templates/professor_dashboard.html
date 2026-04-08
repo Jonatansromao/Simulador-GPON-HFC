@@ -172,7 +172,7 @@
             {% for item in performance_insights.temas %}
               <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
-                  <a href="{{ url_for('html_bp.professor_dashboard', tema=item.tema) }}#detalhe-tema"
+                  <a href="{{ url_for('html_bp.professor_dashboard', tema=item.tema, aluno=(selected_student.id if selected_student else None)) }}#detalhe-tema"
                      class="fw-semibold text-decoration-none {{ 'text-primary' if selected_theme and selected_theme.tema == item.tema else 'text-dark' }}">
                     {{ item.tema }}
                   </a>
@@ -192,7 +192,10 @@
             {% for item in performance_insights.alunos %}
               <div class="mb-3">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
-                  <span class="fw-semibold">{{ item.nome }}</span>
+                  <a href="{{ url_for('html_bp.professor_dashboard', tema=(selected_theme.tema if selected_theme else None), aluno=item.id) }}#detalhe-aluno"
+                     class="fw-semibold text-decoration-none {{ 'text-primary' if selected_student and selected_student.id == item.id else 'text-dark' }}">
+                    {{ item.nome }}
+                  </a>
                   <span class="badge bg-primary">{{ item.erros }} erro(s)</span>
                 </div>
                 <div class="progress" style="height: 10px;">
@@ -221,7 +224,7 @@
                 {% for item in performance_insights.temas %}
                   <tr>
                     <td>
-                      <a href="{{ url_for('html_bp.professor_dashboard', tema=item.tema) }}#detalhe-tema"
+                      <a href="{{ url_for('html_bp.professor_dashboard', tema=item.tema, aluno=(selected_student.id if selected_student else None)) }}#detalhe-tema"
                          class="btn btn-sm {{ 'btn-primary' if selected_theme and selected_theme.tema == item.tema else 'btn-outline-primary' }} tema-filter-btn">
                         {{ item.tema }}
                       </a>
@@ -282,12 +285,16 @@
             {% for item in selected_theme.top_alunos %}
               <div class="col-md-6 col-xl-4">
                 <div class="border rounded p-3 h-100 bg-light">
-                  <div class="fw-semibold">{{ item.nome }}</div>
+                  <a href="{{ url_for('html_bp.professor_dashboard', tema=(selected_theme.tema if selected_theme else None), aluno=item.id) }}#detalhe-aluno"
+                     class="fw-semibold text-decoration-none {{ 'text-primary' if selected_student and selected_student.id == item.id else 'text-dark' }}">
+                    {{ item.nome }}
+                  </a>
                   <div class="text-muted small mb-2">{{ item.erros }} erro(s) em {{ item.total }} resposta(s)</div>
                   <div class="progress" style="height: 10px;">
                     <div class="progress-bar bg-warning" role="progressbar" style="width: {{ item.percentual_erro if item.percentual_erro > 3 else 3 }}%;" aria-valuenow="{{ item.percentual_erro }}" aria-valuemin="0" aria-valuemax="100"></div>
                   </div>
                   <div class="small text-muted mt-2">Taxa de erro: {{ item.percentual_erro }}%</div>
+                  <a href="{{ url_for('html_bp.professor_dashboard', tema=(selected_theme.tema if selected_theme else None), aluno=item.id) }}#detalhe-aluno" class="btn btn-sm btn-outline-warning mt-2">Ver erros detalhados</a>
                 </div>
               </div>
             {% endfor %}
@@ -296,6 +303,81 @@
               <p class="text-muted mb-0">Não há alunos com erros registrados para este tema.</p>
             </div>
           {% endif %}
+        </div>
+      </div>
+
+      <div id="detalhe-aluno" class="border rounded p-3 mt-3 bg-white">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+          <div>
+            <h5 class="mb-1">🔎 Detalhe do aluno selecionado</h5>
+            {% if selected_student %}
+              <small class="text-muted">
+                {{ selected_student.erros }} erro(s) em {{ selected_student.total }} resposta(s) • taxa geral de {{ selected_student.percentual_erro }}%
+                {% if selected_student.tema_selecionado %}
+                  • neste tema: {{ selected_student.tema_selecionado.erros }} erro(s) em {{ selected_student.tema_selecionado.total }} resposta(s)
+                {% endif %}
+              </small>
+            {% else %}
+              <small class="text-muted">Clique no nome de um aluno acima para ver exatamente onde ele mais erra.</small>
+            {% endif %}
+          </div>
+          <span class="badge bg-info text-dark">{{ selected_student.nome if selected_student else 'Nenhum aluno selecionado' }}</span>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-5">
+            <div class="border rounded p-3 h-100 bg-light">
+              <h6 class="mb-3">Temas em que esse aluno mais erra</h6>
+              {% if selected_student and selected_student.temas %}
+                {% for item in selected_student.temas %}
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+                      <span class="fw-semibold {{ 'text-primary' if selected_theme and selected_theme.tema == item.tema else 'text-dark' }}">{{ item.tema }}</span>
+                      <span class="badge bg-secondary">{{ item.erros }} erro(s)</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                      <div class="progress-bar bg-secondary" role="progressbar" style="width: {{ item.percentual_erro if item.percentual_erro > 3 else 3 }}%;" aria-valuenow="{{ item.percentual_erro }}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <small class="text-muted">{{ item.total }} resposta(s) • taxa de erro: {{ item.percentual_erro }}%</small>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <p class="text-muted mb-0">Selecione um aluno para abrir o resumo por tema.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="col-lg-7">
+            <div class="border rounded p-3 h-100 bg-light">
+              <h6 class="mb-1">Questões que ele mais errou</h6>
+              <small class="text-muted d-block mb-3">
+                {% if selected_theme %}
+                  Filtrado em: {{ selected_theme.tema }}
+                {% else %}
+                  Exibindo todas as questões com erro desse aluno
+                {% endif %}
+              </small>
+
+              {% if selected_student and selected_student.questoes_filtradas %}
+                <div class="list-group list-group-flush">
+                  {% for item in selected_student.questoes_filtradas %}
+                    <div class="list-group-item px-0 bg-transparent">
+                      <div class="d-flex justify-content-between gap-2">
+                        <strong>{{ item.tema }}</strong>
+                        <span class="badge bg-danger">{{ item.erros }} erro(s)</span>
+                      </div>
+                      <div class="small mt-1">{{ item.texto }}</div>
+                      <div class="text-muted small">Taxa de erro: {{ item.percentual_erro }}% em {{ item.total }} tentativa(s)</div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% elif selected_student %}
+                <p class="text-muted mb-0">Esse aluno não possui erros registrados no filtro atual.</p>
+              {% else %}
+                <p class="text-muted mb-0">Clique em um nome acima para ver as perguntas erradas dele.</p>
+              {% endif %}
+            </div>
+          </div>
         </div>
       </div>
     {% else %}
