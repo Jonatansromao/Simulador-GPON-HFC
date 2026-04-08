@@ -7,6 +7,8 @@ import secrets
 import hashlib
 import smtplib
 import ssl
+import unicodedata
+from collections import defaultdict
 from email.message import EmailMessage
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -77,6 +79,201 @@ def make_no_cache_response(content):
 @html_bp.app_template_filter("datetime_local")
 def datetime_local_filter(value, fmt: str = "%d/%m/%Y %H:%M"):
     return format_datetime_local(value, fmt)
+
+
+def normalize_topic_text(value: str) -> str:
+    if not value:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(value))
+    normalized = normalized.encode("ascii", "ignore").decode("ascii")
+    return " ".join(normalized.lower().split())
+
+
+def infer_question_theme(questao) -> str:
+    tema_explicito = getattr(questao, "tema", None)
+    if tema_explicito and str(tema_explicito).strip():
+        return str(tema_explicito).strip()
+
+    texto = normalize_topic_text(getattr(questao, "texto", questao or ""))
+    banco = ((getattr(questao, "banco", "") or "").strip().upper())
+
+    regras = [
+        ("Wi‑Fi e Configuração", ["wifi", "wi-fi", "ssid", "senha", "mesh", "net app", "minha net", "hotspot"]),
+        ("Fibra e GPON", ["gpon", "fibra", "optica", "optico", "olt", "ont", "nap", "splitter", "drop flat", "power meter", "pto", "dbm"]),
+        ("HFC e Sinal", ["hfc", "coaxial", "cmts", "upstream", "downstream", "mer", "ber", "tilt", "retorno", "impedancia", "cable isolator"]),
+        ("TV e Equipamentos", ["decoder", "decodificador", "controle remoto", "now", "telecine", "claro tv", "hdmax", "auto hit", "canal"]),
+        ("Telefonia", ["fone", "telefonia", "voip", "chamada", "siga-me", "conferencia"]),
+        ("Segurança e Instalação", ["epi", "epc", "altura", "escada", "apr", "seguranca", "instalacao", "instalador"]),
+        ("Procedimentos e Atendimento", ["ura", "toa", "os", "procedimento", "cliente", "valida retorno", "baixa", "atendimento", "contrato"]),
+    ]
+
+    for tema, palavras_chave in regras:
+        if any(palavra in texto for palavra in palavras_chave):
+            return tema
+
+    if banco == "GPON":
+        return "Fundamentos GPON"
+    if banco == "HFC":
+        return "Fundamentos HFC"
+    return "Geral"
+
+
+def build_professor_performance_insights(professor_id: int) -> dict:
+    respostas = (
+        Resposta.query
+        .join(Aluno, Resposta.aluno_id == Aluno.id)
+        .join(Questao, Resposta.questao_id == Questao.id)
+        .filter(Aluno.professor_id == professor_id)
+        .all()
+    )
+
+    if not respostas:
+        return {
+            "total_respostas": 0,
+            "temas": [],
+            "alunos": [],
+            "questoes_criticas": [],
+            "tema_padrao": None,
+        }
+
+    temas = defaultdict(
+        lambda: {
+            "erros": 0,
+            "total": 0,
+            "alunos": set(),
+            "alunos_stats": {},
+            "questoes_stats": {},
+        }
+    )
+    alunos = {}
+    questoes = {}
+
+    for resposta in respostas:
+        aluno = resposta.aluno
+        questao = resposta.questao
+        if not aluno or not questao:
+            continue
+
+        tema = infer_question_theme(questao)
+        tema_item = temas[tema]
+        tema_item["total"] += 1
+        tema_item["alunos"].add(aluno.id)
+
+        aluno_item = alunos.setdefault(
+            aluno.id,
+            {"nome": aluno.nome, "erros": 0, "total": 0, "percentual_erro": 0.0},
+        )
+        aluno_item["total"] += 1
+
+        aluno_tema_item = tema_item["alunos_stats"].setdefault(
+            aluno.id,
+            {"nome": aluno.nome, "erros": 0, "total": 0, "percentual_erro": 0.0},
+        )
+        aluno_tema_item["total"] += 1
+
+        questao_item = questoes.setdefault(
+            questao.id,
+            {"texto": questao.texto, "tema": tema, "erros": 0, "total": 0, "percentual_erro": 0.0},
+        )
+        questao_item["total"] += 1
+
+        questao_tema_item = tema_item["questoes_stats"].setdefault(
+            questao.id,
+            {"texto": questao.texto, "erros": 0, "total": 0, "percentual_erro": 0.0},
+        )
+        questao_tema_item["total"] += 1
+
+        if not bool(resposta.correta):
+            tema_item["erros"] += 1
+            aluno_item["erros"] += 1
+            aluno_tema_item["erros"] += 1
+            questao_item["erros"] += 1
+            questao_tema_item["erros"] += 1
+
+    temas_ordenados = []
+    for tema, valores in temas.items():
+        total = valores["total"]
+        erros = valores["erros"]
+
+        top_alunos = []
+        for aluno_valores in valores["alunos_stats"].values():
+            total_aluno = aluno_valores["total"]
+            erros_aluno = aluno_valores["erros"]
+            registro = {
+                **aluno_valores,
+                "percentual_erro": round((erros_aluno / total_aluno) * 100, 1) if total_aluno else 0.0,
+            }
+            if erros_aluno:
+                top_alunos.append(registro)
+        top_alunos.sort(key=lambda item: (-item["erros"], -item["percentual_erro"], item["nome"]))
+
+        top_questoes = []
+        for questao_valores in valores["questoes_stats"].values():
+            total_questao = questao_valores["total"]
+            erros_questao = questao_valores["erros"]
+            registro = {
+                **questao_valores,
+                "percentual_erro": round((erros_questao / total_questao) * 100, 1) if total_questao else 0.0,
+            }
+            if erros_questao:
+                top_questoes.append(registro)
+        top_questoes.sort(key=lambda item: (-item["erros"], -item["percentual_erro"], item["texto"]))
+
+        temas_ordenados.append({
+            "tema": tema,
+            "total": total,
+            "erros": erros,
+            "alunos_afetados": len(valores["alunos"]),
+            "percentual_erro": round((erros / total) * 100, 1) if total else 0.0,
+            "top_alunos": top_alunos[:5],
+            "top_questoes": top_questoes[:5],
+        })
+    temas_ordenados.sort(key=lambda item: (-item["erros"], -item["percentual_erro"], item["tema"]))
+
+    alunos_ordenados = []
+    for valores in alunos.values():
+        total = valores["total"]
+        erros = valores["erros"]
+        valores["percentual_erro"] = round((erros / total) * 100, 1) if total else 0.0
+        alunos_ordenados.append(valores)
+    alunos_ordenados.sort(key=lambda item: (-item["erros"], -item["percentual_erro"], item["nome"]))
+
+    questoes_criticas = []
+    for valores in questoes.values():
+        total = valores["total"]
+        erros = valores["erros"]
+        valores["percentual_erro"] = round((erros / total) * 100, 1) if total else 0.0
+        if erros:
+            questoes_criticas.append(valores)
+    questoes_criticas.sort(key=lambda item: (-item["erros"], -item["percentual_erro"], item["texto"]))
+
+    return {
+        "total_respostas": len(respostas),
+        "temas": temas_ordenados[:8],
+        "alunos": alunos_ordenados[:10],
+        "questoes_criticas": questoes_criticas[:10],
+        "tema_padrao": temas_ordenados[0]["tema"] if temas_ordenados else None,
+    }
+
+
+def get_selected_theme_insight(performance_insights: dict, selected_theme: str | None = None):
+    temas = (performance_insights or {}).get("temas") or []
+    if not temas:
+        return None
+
+    normalized_selected = normalize_topic_text(selected_theme)
+    if normalized_selected:
+        for item in temas:
+            if normalize_topic_text(item.get("tema")) == normalized_selected:
+                return item
+
+    return temas[0]
+
+
+def build_export_filename(prefix: str, tema: str | None = None, extension: str = "txt") -> str:
+    suffix = normalize_topic_text(tema).replace(" ", "_") if tema else "geral"
+    suffix = suffix or "geral"
+    return f"{prefix}_{suffix}.{extension}"
 
 
 # -----------------------------
@@ -650,6 +847,8 @@ def professor_dashboard():
             subscription_status = "Premium"
             expires_at = professor.premium_expires_at.strftime("%d/%m/%Y") if professor.premium_expires_at else None
 
+    performance_insights = build_professor_performance_insights(professor_id)
+
     return render_template(
         "professor_dashboard.html",
         nome=professor_nome,
@@ -660,6 +859,52 @@ def professor_dashboard():
         solicitacoes_pendentes=solicitacoes_pendentes,
         alunos_vinculados=alunos_vinculados,
         total_alunos_aprovados=total_alunos_aprovados,
+        performance_insights=performance_insights,
+    )
+
+
+@html_bp.route("/professor/relatorio_temas/excel")
+@api_login_required_professor
+@premium_required
+def professor_relatorio_temas_excel():
+    professor_id = session["usuario"]["id"]
+    professor = Professor.query.get(professor_id)
+    performance_insights = build_professor_performance_insights(professor_id)
+    tema_param = (request.args.get("tema") or "").strip()
+    tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
+
+    content = render_template(
+        "professor_relatorio_excel.html",
+        professor=professor,
+        performance_insights=performance_insights,
+        tema_selecionado=tema_selecionado,
+        generated_at=format_datetime_local(datetime.utcnow()),
+    )
+
+    response = make_response(content)
+    response.headers["Content-Type"] = "application/vnd.ms-excel; charset=utf-8"
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename={build_export_filename('relatorio_temas', tema_param or (tema_selecionado or {}).get('tema'), 'xls')}"
+    )
+    return response
+
+
+@html_bp.route("/professor/relatorio_temas/pdf")
+@api_login_required_professor
+@premium_required
+def professor_relatorio_temas_pdf():
+    professor_id = session["usuario"]["id"]
+    professor = Professor.query.get(professor_id)
+    performance_insights = build_professor_performance_insights(professor_id)
+    tema_param = (request.args.get("tema") or "").strip()
+    tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
+
+    return render_template(
+        "professor_relatorio_pdf.html",
+        professor=professor,
+        performance_insights=performance_insights,
+        tema_selecionado=tema_selecionado,
+        generated_at=format_datetime_local(datetime.utcnow()),
     )
 
 
@@ -1170,6 +1415,7 @@ def get_questoes_professor(banco):
 
         item = q.to_dict()
         item["imagem"] = imagem
+        item["tema"] = infer_question_theme(q)
         data.append(item)
 
     return jsonify(data)
@@ -2403,6 +2649,7 @@ def professor_pagar_cartao():
             professor.email,
             250.00,
             mp_payment.id,
+            base_url=request.host_url,
         )
 
         if not checkout_url:

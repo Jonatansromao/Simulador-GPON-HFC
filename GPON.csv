@@ -1,4 +1,4 @@
-Pergunta,A,B,C,D,Correta,Imagem
+Pergunta,A,B,C,D,Correta,Imagem,Tema
 "1) A _____________ é o equipamento instalado na casa do cliente em forma de modem. Sua função é receber o sinal óptico e o converter em sinal elétrico, podendo ser transmitido a um equipamento através de cabo Ethernet ou WiFi.",OLT,NAP,ONT,SPLITTER,C,
 "2) Léo precisa instalar cabos em três apartamentos. No primeiro ele usou 7,8 metros de cabo No segundo, 9,5 metros No terceiro, 8,7 metros Quantos metros de cabo ele usou no total?","26,0 m","25,0 m","25,8 m","26,5 m",A,
 3) Sobre as soluções de conectividade o que é o Wi-Fi Mesh?,Um sistema com vários pontos de acesso que ampliam e estabilizam o sinal de Wi-Fi pela casa,Um roteador que funciona apenas com conexão via cabo,Um cabo especial que aumenta a velocidade da internet,Um aplicativo para gerenciar a velocidade da conexão,A,

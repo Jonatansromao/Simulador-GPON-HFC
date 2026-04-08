@@ -177,6 +177,7 @@ class Questao(db.Model):
     correta = db.Column(db.Text)
     imagem = db.Column(db.Text)   # URL da imagem
     banco = db.Column(db.Text)    # ex: "GPON" ou "HFC"
+    tema = db.Column(db.String(120), nullable=True)
 
     def to_dict(self):
         return {
@@ -190,7 +191,8 @@ class Questao(db.Model):
             ],
             "correta": self.correta,
             "imagem": self.imagem,
-            "banco": self.banco
+            "banco": self.banco,
+            "tema": self.tema,
         }
 
 # ------------------------

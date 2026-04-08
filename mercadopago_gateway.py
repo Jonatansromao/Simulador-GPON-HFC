@@ -9,8 +9,43 @@ def get_access_token():
     return os.getenv("MERCADOPAGO_ACCESS_TOKEN")
 
 
-def get_base_url():
-    return (os.getenv("APP_BASE_URL") or os.getenv("NGROK_URL") or "http://localhost:5000").rstrip("/")
+def normalize_public_base_url(url):
+    if not url:
+        return None
+
+    normalized = str(url).strip().rstrip("/")
+    if not normalized:
+        return None
+
+    if "://" not in normalized:
+        normalized = f"https://{normalized}"
+
+    lowered = normalized.lower()
+    if (
+        "localhost" in lowered
+        or "127.0.0.1" in lowered
+        or ".internal" in lowered
+    ):
+        return None
+
+    return normalized
+
+
+def get_base_url(request_base_url=None):
+    candidates = [
+        request_base_url,
+        os.getenv("APP_BASE_URL"),
+        os.getenv("RAILWAY_PUBLIC_DOMAIN"),
+        os.getenv("RENDER_EXTERNAL_URL"),
+        os.getenv("NGROK_URL"),
+    ]
+
+    for candidate in candidates:
+        normalized = normalize_public_base_url(candidate)
+        if normalized:
+            return normalized
+
+    return "http://localhost:5000"
 
 
 def is_sandbox_mode():
@@ -35,12 +70,18 @@ class MercadoPagoGateway:
         return bool(get_access_token())
 
     @staticmethod
-    def criar_preferencia(professor_id, professor_email, valor=250.00, payment_id=None):
+    def criar_preferencia(professor_id, professor_email, valor=250.00, payment_id=None, base_url=None):
         access_token = get_access_token()
         if not access_token:
             return None, "Mercado Pago não está configurado. Defina MERCADOPAGO_ACCESS_TOKEN."
 
-        base_url = get_base_url()
+        base_url = get_base_url(base_url)
+        if not base_url.startswith("https://"):
+            return None, (
+                "Defina APP_BASE_URL com a URL pública HTTPS do Railway "
+                "(ex.: https://simulador-gpon-hfc.up.railway.app)."
+            )
+
         preference = {
             "items": [
                 {

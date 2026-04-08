@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório por Temas</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #222; }
+    h1, h2, h3 { margin-bottom: 6px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 18px; }
+    th, td { border: 1px solid #cfcfcf; padding: 8px; vertical-align: top; }
+    th { background: #e9f2ff; text-align: left; }
+    .muted { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Relatório de Dificuldades por Tema</h1>
+  <p><strong>Professor:</strong> {{ professor.nome if professor else 'Professor' }}</p>
+  <p><strong>Gerado em:</strong> {{ generated_at }}</p>
+  <p><strong>Total de respostas analisadas:</strong> {{ performance_insights.total_respostas }}</p>
+
+  <h2>Resumo por tema</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Tema</th>
+        <th>Erros</th>
+        <th>Total</th>
+        <th>Taxa de erro</th>
+        <th>Alunos afetados</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in performance_insights.temas %}
+      <tr>
+        <td>{{ item.tema }}</td>
+        <td>{{ item.erros }}</td>
+        <td>{{ item.total }}</td>
+        <td>{{ item.percentual_erro }}%</td>
+        <td>{{ item.alunos_afetados }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5">Sem dados disponíveis.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Alunos com mais erros</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Aluno</th>
+        <th>Erros</th>
+        <th>Total de respostas</th>
+        <th>Taxa de erro</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in performance_insights.alunos %}
+      <tr>
+        <td>{{ item.nome }}</td>
+        <td>{{ item.erros }}</td>
+        <td>{{ item.total }}</td>
+        <td>{{ item.percentual_erro }}%</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4">Sem dados disponíveis.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if tema_selecionado %}
+    <h2>Detalhes do tema: {{ tema_selecionado.tema }}</h2>
+    <p class="muted">{{ tema_selecionado.erros }} erro(s) em {{ tema_selecionado.total }} resposta(s) • {{ tema_selecionado.percentual_erro }}% de taxa de erro</p>
+
+    <h3>Alunos que mais erram neste tema</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Aluno</th>
+          <th>Erros</th>
+          <th>Total</th>
+          <th>Taxa</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in tema_selecionado.top_alunos %}
+        <tr>
+          <td>{{ item.nome }}</td>
+          <td>{{ item.erros }}</td>
+          <td>{{ item.total }}</td>
+          <td>{{ item.percentual_erro }}%</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">Sem alunos com erros neste tema.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <h3>Perguntas mais erradas neste tema</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Pergunta</th>
+          <th>Erros</th>
+          <th>Total</th>
+          <th>Taxa</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in tema_selecionado.top_questoes %}
+        <tr>
+          <td>{{ item.texto }}</td>
+          <td>{{ item.erros }}</td>
+          <td>{{ item.total }}</td>
+          <td>{{ item.percentual_erro }}%</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">Sem perguntas críticas neste tema.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</body>
+</html>

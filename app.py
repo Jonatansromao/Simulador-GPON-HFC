@@ -226,6 +226,11 @@ def ensure_schema_updates():
             "UPDATE turmas SET auto_restart_enabled = FALSE WHERE auto_restart_enabled IS NULL"
         )
 
+    if "questao" in tables:
+        questao_columns = {col["name"] for col in inspector.get_columns("questao")}
+        if "tema" not in questao_columns:
+            execute_statement("ALTER TABLE questao ADD COLUMN tema VARCHAR(120)")
+
 
 def ensure_question_banks_loaded():
     from models import Questao
@@ -260,6 +265,7 @@ def ensure_question_banks_loaded():
                     correta=(row.get("Correta") or "").strip() or None,
                     imagem=(row.get("Imagem") or "").strip() or None,
                     banco=banco,
+                    tema=(row.get("Tema") or "").strip() or None,
                 )
                 db.session.add(q)
                 added += 1
