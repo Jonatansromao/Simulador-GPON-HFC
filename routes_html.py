@@ -1006,20 +1006,24 @@ def professor_relatorio_temas_excel():
     professor = Professor.query.get(professor_id)
     performance_insights = build_professor_performance_insights(professor_id)
     tema_param = (request.args.get("tema") or "").strip()
-    tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
+    scope_param = (request.args.get("scope") or "geral").strip().lower()
+    tema_selecionado = None
+    if scope_param == "tema" and tema_param:
+        tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
 
     content = render_template(
         "professor_relatorio_excel.html",
         professor=professor,
         performance_insights=performance_insights,
         tema_selecionado=tema_selecionado,
+        report_scope=scope_param,
         generated_at=format_datetime_local(datetime.utcnow()),
     )
 
     response = make_response(content)
     response.headers["Content-Type"] = "application/vnd.ms-excel; charset=utf-8"
     response.headers["Content-Disposition"] = (
-        f"attachment; filename={build_export_filename('relatorio_temas', tema_param or (tema_selecionado or {}).get('tema'), 'xls')}"
+        f"attachment; filename={build_export_filename('relatorio_temas', (tema_selecionado or {}).get('tema') if scope_param == 'tema' else None, 'xls')}"
     )
     return response
 
@@ -1032,13 +1036,17 @@ def professor_relatorio_temas_pdf():
     professor = Professor.query.get(professor_id)
     performance_insights = build_professor_performance_insights(professor_id)
     tema_param = (request.args.get("tema") or "").strip()
-    tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
+    scope_param = (request.args.get("scope") or "geral").strip().lower()
+    tema_selecionado = None
+    if scope_param == "tema" and tema_param:
+        tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
 
     return render_template(
         "professor_relatorio_pdf.html",
         professor=professor,
         performance_insights=performance_insights,
         tema_selecionado=tema_selecionado,
+        report_scope=scope_param,
         generated_at=format_datetime_local(datetime.utcnow()),
     )
 

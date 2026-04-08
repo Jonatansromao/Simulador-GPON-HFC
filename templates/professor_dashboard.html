@@ -86,12 +86,18 @@
   </div>
 
   <div class="card shadow p-4 mb-3">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
       <h4 class="mb-0">👥 Alunos vinculados</h4>
-      <span class="badge bg-secondary" id="alunos-vinculados-count">{{ alunos_vinculados|length }} aluno(s)</span>
+      <div class="d-flex align-items-center flex-wrap gap-2">
+        <span class="badge bg-secondary" id="alunos-vinculados-count">{{ alunos_vinculados|length }} aluno(s)</span>
+        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#alunosVinculadosCollapse" aria-expanded="true" aria-controls="alunosVinculadosCollapse">
+          ↕ Expandir / diminuir
+        </button>
+      </div>
     </div>
 
-    <div id="alunos-vinculados-container">
+    <div id="alunosVinculadosCollapse" class="collapse show">
+      <div id="alunos-vinculados-container">
       {% if alunos_vinculados %}
         <div class="table-responsive">
           <table class="table table-striped table-hover align-middle mb-2">
@@ -148,6 +154,7 @@
       {% else %}
         <p class="text-muted mb-0">Nenhum aluno vinculado a este professor até o momento.</p>
       {% endif %}
+      </div>
     </div>
   </div>
 
@@ -159,9 +166,14 @@
       </div>
       <div class="d-flex flex-wrap gap-2 align-items-center">
         <span class="badge bg-dark">{{ performance_insights.total_respostas }} resposta(s) analisada(s)</span>
-        <a id="exportExcelBtn" href="{{ url_for('html_bp.professor_relatorio_temas_excel', tema=(selected_theme.tema if selected_theme else None)) }}" class="btn btn-success btn-sm">📥 Excel</a>
-        <a id="exportPdfBtn" href="{{ url_for('html_bp.professor_relatorio_temas_pdf', tema=(selected_theme.tema if selected_theme else None)) }}" target="_blank" rel="noopener" class="btn btn-danger btn-sm">🧾 PDF</a>
+        <select id="reportScopeSelect" class="form-select form-select-sm" style="min-width: 220px;">
+          <option value="geral" selected>Relatório geral</option>
+          <option value="tema" {% if not selected_theme %}disabled{% endif %}>{{ ('Tema selecionado: ' ~ selected_theme.tema) if selected_theme else 'Tema selecionado' }}</option>
+        </select>
+        <a id="exportExcelBtn" href="{{ url_for('html_bp.professor_relatorio_temas_excel', scope='geral') }}" class="btn btn-success btn-sm">📥 Excel</a>
+        <a id="exportPdfBtn" href="{{ url_for('html_bp.professor_relatorio_temas_pdf', scope='geral') }}" target="_blank" rel="noopener" class="btn btn-danger btn-sm">🧾 PDF</a>
       </div>
+      <small class="text-muted">Escolha se deseja baixar o relatório geral ou somente do tema em destaque.</small>
     </div>
 
     {% if performance_insights.total_respostas %}
@@ -739,6 +751,36 @@
   socket.on("painel_professor_atualizado", () => {
     sincronizarPainelProfessor();
   });
+
+  function updateReportDownloadLinks() {
+    const scopeSelect = document.getElementById("reportScopeSelect");
+    const excelBtn = document.getElementById("exportExcelBtn");
+    const pdfBtn = document.getElementById("exportPdfBtn");
+    const selectedTheme = {{ (selected_theme.tema if selected_theme else None)|tojson }};
+
+    if (!scopeSelect || !excelBtn || !pdfBtn) return;
+
+    const selectedScope = scopeSelect.value === "tema" ? "tema" : "geral";
+    const buildUrl = (baseHref) => {
+      const url = new URL(baseHref, window.location.origin);
+      url.searchParams.set("scope", selectedScope);
+      if (selectedScope === "tema" && selectedTheme) {
+        url.searchParams.set("tema", selectedTheme);
+      } else {
+        url.searchParams.delete("tema");
+      }
+      return `${url.pathname}${url.search}`;
+    };
+
+    excelBtn.setAttribute("href", buildUrl(excelBtn.getAttribute("href") || excelBtn.href));
+    pdfBtn.setAttribute("href", buildUrl(pdfBtn.getAttribute("href") || pdfBtn.href));
+  }
+
+  const reportScopeSelect = document.getElementById("reportScopeSelect");
+  if (reportScopeSelect) {
+    reportScopeSelect.addEventListener("change", updateReportDownloadLinks);
+    updateReportDownloadLinks();
+  }
 
   sincronizarPainelProfessor();
   window.setInterval(sincronizarPainelProfessor, 3000);

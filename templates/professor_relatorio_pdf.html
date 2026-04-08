@@ -65,6 +65,7 @@
     <div>
       <h1 style="margin:0;">Relatório por Temas</h1>
       <div class="muted">Professor: {{ professor.nome if professor else 'Professor' }} • Gerado em {{ generated_at }}</div>
+      <div class="muted">Tipo: {{ 'Tema selecionado' if report_scope == 'tema' and tema_selecionado else 'Geral' }}{% if report_scope == 'tema' and tema_selecionado %} — {{ tema_selecionado.tema }}{% endif %}</div>
     </div>
     <div>
       <button class="btn" onclick="window.print()">🧾 Salvar como PDF</button>

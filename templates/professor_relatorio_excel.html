@@ -16,6 +16,7 @@
   <h1>Relatório de Dificuldades por Tema</h1>
   <p><strong>Professor:</strong> {{ professor.nome if professor else 'Professor' }}</p>
   <p><strong>Gerado em:</strong> {{ generated_at }}</p>
+  <p><strong>Tipo do relatório:</strong> {{ 'Tema selecionado' if report_scope == 'tema' and tema_selecionado else 'Geral' }}{% if report_scope == 'tema' and tema_selecionado %} — {{ tema_selecionado.tema }}{% endif %}</p>
   <p><strong>Total de respostas analisadas:</strong> {{ performance_insights.total_respostas }}</p>
 
   <h2>Resumo por tema</h2>
