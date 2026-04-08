@@ -848,6 +848,10 @@ def professor_dashboard():
             expires_at = professor.premium_expires_at.strftime("%d/%m/%Y") if professor.premium_expires_at else None
 
     performance_insights = build_professor_performance_insights(professor_id)
+    selected_theme = get_selected_theme_insight(
+        performance_insights,
+        (request.args.get("tema") or "").strip(),
+    )
 
     return render_template(
         "professor_dashboard.html",
@@ -860,6 +864,7 @@ def professor_dashboard():
         alunos_vinculados=alunos_vinculados,
         total_alunos_aprovados=total_alunos_aprovados,
         performance_insights=performance_insights,
+        selected_theme=selected_theme,
     )
 
 
