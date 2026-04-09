@@ -1229,13 +1229,21 @@ def admin_dashboard():
 
     professores_data = []
     for professor in Professor.query.order_by(Professor.nome.asc()).all():
+        premium_expires_at = professor.premium_expires_at
+        is_trial_active = bool(
+            professor.is_premium_active()
+            and premium_expires_at
+            and premium_expires_at <= datetime.utcnow() + timedelta(days=3, minutes=5)
+        )
+
         professores_data.append({
             "id": professor.id,
             "nome": professor.nome,
             "email": professor.email,
             "is_admin": professor.is_admin or is_admin_email(professor.email),
             "premium_active": professor.is_premium_active(),
-            "premium_expires_at": professor.premium_expires_at,
+            "premium_expires_at": premium_expires_at,
+            "is_trial_active": is_trial_active,
             "total_turmas": len(professor.turmas),
             "total_alunos": Aluno.query.filter_by(professor_id=professor.id).count(),
             "pendentes": Aluno.query.filter_by(professor_id=professor.id, approval_status="pending").count(),

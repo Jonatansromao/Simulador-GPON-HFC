@@ -76,7 +76,11 @@
                   {% if professor.is_admin %}
                     <span class="badge bg-dark">Administrador</span>
                   {% elif professor.premium_active %}
-                    <span class="badge bg-success">Premium</span>
+                    {% if professor.is_trial_active %}
+                      <span class="badge bg-info text-dark">Teste 3 dias</span>
+                    {% else %}
+                      <span class="badge bg-success">Premium</span>
+                    {% endif %}
                     {% if professor.premium_expires_at %}
                       <br><small class="text-muted">até {{ professor.premium_expires_at|datetime_local('%d/%m/%Y %H:%M') }}</small>
                     {% endif %}
