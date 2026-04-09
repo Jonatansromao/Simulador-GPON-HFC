@@ -88,6 +88,10 @@
                   {% if not professor.is_admin %}
                     <div class="d-flex flex-wrap gap-1">
                       <form method="POST" action="{{ url_for('html_bp.admin_toggle_premium', professor_id=professor.id) }}">
+                        <input type="hidden" name="action" value="teste_3_dias">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">Teste 3 dias</button>
+                      </form>
+                      <form method="POST" action="{{ url_for('html_bp.admin_toggle_premium', professor_id=professor.id) }}">
                         <input type="hidden" name="action" value="ativar">
                         <button type="submit" class="btn btn-outline-success btn-sm">+30 dias premium</button>
                       </form>

@@ -1268,6 +1268,11 @@ def admin_toggle_premium(professor_id):
         professor.is_premium = False
         professor.premium_expires_at = None
         message = f"Premium removido do professor {professor.nome}."
+    elif action in {"teste_3_dias", "trial_3_days", "teste"}:
+        base_date = professor.premium_expires_at if professor.premium_expires_at and professor.premium_expires_at > datetime.utcnow() else datetime.utcnow()
+        professor.is_premium = True
+        professor.premium_expires_at = base_date + timedelta(days=3)
+        message = f"Teste premium de 3 dias ativado para {professor.nome} até {format_datetime_local(professor.premium_expires_at, '%d/%m/%Y %H:%M')}."
     else:
         base_date = professor.premium_expires_at if professor.premium_expires_at and professor.premium_expires_at > datetime.utcnow() else datetime.utcnow()
         professor.is_premium = True
