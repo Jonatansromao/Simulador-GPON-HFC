@@ -1249,6 +1249,13 @@ def admin_dashboard():
             "pendentes": Aluno.query.filter_by(professor_id=professor.id, approval_status="pending").count(),
         })
 
+    questoes_recentes = (
+        Questao.query
+        .order_by(Questao.id.desc())
+        .limit(50)
+        .all()
+    )
+
     return render_template(
         "admin_dashboard.html",
         total_professores=total_professores,
@@ -1258,6 +1265,7 @@ def admin_dashboard():
         alunos_pendentes=alunos_pendentes,
         pagamentos_pendentes=pagamentos_pendentes,
         professores=professores_data,
+        questoes_recentes=questoes_recentes,
     )
 
 
@@ -1346,6 +1354,62 @@ def admin_add_question():
     db.session.commit()
 
     flash(f"Pergunta adicionada com sucesso no banco {banco}.", "success")
+    return redirect(url_for("html_bp.admin_dashboard"))
+
+
+@html_bp.route("/admin/questoes/<int:questao_id>/editar", methods=["POST"])
+@api_login_required_professor
+@admin_required
+def admin_edit_question(questao_id):
+    questao = Questao.query.get_or_404(questao_id)
+
+    banco = (request.form.get("banco") or "").strip().upper()
+    texto = (request.form.get("texto") or "").strip()
+    opcao_a = (request.form.get("opcao_a") or "").strip()
+    opcao_b = (request.form.get("opcao_b") or "").strip()
+    opcao_c = (request.form.get("opcao_c") or "").strip()
+    opcao_d = (request.form.get("opcao_d") or "").strip()
+    correta = (request.form.get("correta") or "").strip().upper()
+    tema = (request.form.get("tema") or "").strip()
+    imagem = (request.form.get("imagem") or "").strip()
+
+    if banco not in {"HFC", "GPON"}:
+        flash("Selecione um banco valido (HFC ou GPON).", "warning")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    if not texto:
+        flash("A pergunta nao pode ficar vazia.", "warning")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    if not all([opcao_a, opcao_b, opcao_c, opcao_d]):
+        flash("Preencha todas as alternativas A, B, C e D.", "warning")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    if correta not in {"A", "B", "C", "D"}:
+        flash("A alternativa correta deve ser A, B, C ou D.", "warning")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    duplicada = Questao.query.filter(
+        Questao.id != questao.id,
+        Questao.banco == banco,
+        db.func.lower(db.func.trim(Questao.texto)) == texto.lower(),
+    ).first()
+    if duplicada:
+        flash("Ja existe outra pergunta igual nesse banco.", "info")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    questao.banco = banco
+    questao.texto = texto
+    questao.opcao_a = opcao_a
+    questao.opcao_b = opcao_b
+    questao.opcao_c = opcao_c
+    questao.opcao_d = opcao_d
+    questao.correta = correta
+    questao.tema = tema or None
+    questao.imagem = imagem or None
+
+    db.session.commit()
+    flash(f"Pergunta #{questao.id} atualizada com sucesso.", "success")
     return redirect(url_for("html_bp.admin_dashboard"))
 
 
