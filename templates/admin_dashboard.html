@@ -118,6 +118,69 @@
     </div>
   </div>
 
+  <div class="card shadow-sm mb-4">
+    <div class="card-header"><strong>🧠 Cadastro de perguntas (HFC/GPON)</strong></div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('html_bp.admin_add_question') }}">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Banco</label>
+            <select class="form-select" name="banco" required>
+              <option value="">Selecione</option>
+              <option value="HFC">HFC</option>
+              <option value="GPON">GPON</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Alternativa correta</label>
+            <select class="form-select" name="correta" required>
+              <option value="">Selecione</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Tema (opcional)</label>
+            <input type="text" class="form-control" name="tema" placeholder="Ex.: HFC e Sinal">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Pergunta</label>
+            <textarea class="form-control" name="texto" rows="3" required placeholder="Digite o enunciado completo da pergunta"></textarea>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Alternativa A</label>
+            <input type="text" class="form-control" name="opcao_a" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Alternativa B</label>
+            <input type="text" class="form-control" name="opcao_b" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Alternativa C</label>
+            <input type="text" class="form-control" name="opcao_c" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Alternativa D</label>
+            <input type="text" class="form-control" name="opcao_d" required>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">URL da imagem (opcional)</label>
+            <input type="url" class="form-control" name="imagem" placeholder="https://...">
+          </div>
+        </div>
+
+        <div class="mt-3 d-flex justify-content-end">
+          <button type="submit" class="btn btn-primary">Salvar pergunta no banco</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="row g-4">
     <div class="col-lg-6">
       <div class="card shadow-sm h-100">

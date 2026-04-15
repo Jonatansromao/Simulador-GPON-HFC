@@ -1292,6 +1292,63 @@ def admin_toggle_premium(professor_id):
     return redirect(url_for("html_bp.admin_dashboard"))
 
 
+@html_bp.route("/admin/questoes/adicionar", methods=["POST"])
+@api_login_required_professor
+@admin_required
+def admin_add_question():
+    banco = (request.form.get("banco") or "").strip().upper()
+    texto = (request.form.get("texto") or "").strip()
+    opcao_a = (request.form.get("opcao_a") or "").strip()
+    opcao_b = (request.form.get("opcao_b") or "").strip()
+    opcao_c = (request.form.get("opcao_c") or "").strip()
+    opcao_d = (request.form.get("opcao_d") or "").strip()
+    correta = (request.form.get("correta") or "").strip().upper()
+    tema = (request.form.get("tema") or "").strip()
+    imagem = (request.form.get("imagem") or "").strip()
+
+    if banco not in {"HFC", "GPON"}:
+        flash("Selecione um banco valido (HFC ou GPON).", "warning")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    if not texto:
+        flash("A pergunta nao pode ficar vazia.", "warning")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    if not all([opcao_a, opcao_b, opcao_c, opcao_d]):
+        flash("Preencha todas as alternativas A, B, C e D.", "warning")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    if correta not in {"A", "B", "C", "D"}:
+        flash("A alternativa correta deve ser A, B, C ou D.", "warning")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    duplicada = Questao.query.filter(
+        Questao.banco == banco,
+        db.func.lower(db.func.trim(Questao.texto)) == texto.lower(),
+    ).first()
+    if duplicada:
+        flash("Essa pergunta ja existe no banco selecionado.", "info")
+        return redirect(url_for("html_bp.admin_dashboard"))
+
+    nova_questao = Questao(
+        texto=texto,
+        opcao_a=opcao_a,
+        opcao_b=opcao_b,
+        opcao_c=opcao_c,
+        opcao_d=opcao_d,
+        correta=correta,
+        imagem=imagem or None,
+        banco=banco,
+        tema=tema or None,
+    )
+
+    db.session.add(nova_questao)
+    db.session.commit()
+
+    flash(f"Pergunta adicionada com sucesso no banco {banco}.", "success")
+    return redirect(url_for("html_bp.admin_dashboard"))
+
+
 @html_bp.route("/aluno/dashboard", methods=["GET", "POST"])
 def aluno_dashboard():
     # ✅ Verifica se o aluno está logado
