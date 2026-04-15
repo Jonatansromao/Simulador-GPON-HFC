@@ -1249,8 +1249,16 @@ def admin_dashboard():
             "pendentes": Aluno.query.filter_by(professor_id=professor.id, approval_status="pending").count(),
         })
 
+    banco_filtro = (request.args.get("banco") or "todos").strip().upper()
+    if banco_filtro not in {"HFC", "GPON"}:
+        banco_filtro = "TODOS"
+
+    questoes_query = Questao.query
+    if banco_filtro in {"HFC", "GPON"}:
+        questoes_query = questoes_query.filter(Questao.banco == banco_filtro)
+
     questoes_recentes = (
-        Questao.query
+        questoes_query
         .order_by(Questao.id.desc())
         .limit(50)
         .all()
@@ -1266,6 +1274,7 @@ def admin_dashboard():
         pagamentos_pendentes=pagamentos_pendentes,
         professores=professores_data,
         questoes_recentes=questoes_recentes,
+        banco_filtro=banco_filtro,
     )
 
 

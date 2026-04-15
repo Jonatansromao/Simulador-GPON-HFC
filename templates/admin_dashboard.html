@@ -184,6 +184,21 @@
   <div class="card shadow-sm mb-4">
     <div class="card-header"><strong>✏️ Edição de perguntas (últimas 50)</strong></div>
     <div class="card-body p-0">
+      <div class="p-3 border-bottom bg-light">
+        <form method="GET" action="{{ url_for('html_bp.admin_dashboard') }}" class="row g-2 align-items-end">
+          <div class="col-sm-6 col-md-3">
+            <label class="form-label mb-1">Filtrar por banco</label>
+            <select class="form-select form-select-sm" name="banco">
+              <option value="todos" {% if banco_filtro == 'TODOS' %}selected{% endif %}>Todos</option>
+              <option value="HFC" {% if banco_filtro == 'HFC' %}selected{% endif %}>HFC</option>
+              <option value="GPON" {% if banco_filtro == 'GPON' %}selected{% endif %}>GPON</option>
+            </select>
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <button type="submit" class="btn btn-outline-primary btn-sm w-100">Aplicar filtro</button>
+          </div>
+        </form>
+      </div>
       <div class="table-responsive">
         <table class="table table-striped align-middle mb-0">
           <thead class="table-light">
