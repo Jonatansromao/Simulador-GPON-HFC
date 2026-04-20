@@ -91,6 +91,12 @@ def normalize_topic_text(value: str) -> str:
     return " ".join(normalized.lower().split())
 
 
+def normalize_cpf(value: str) -> str:
+    if not value:
+        return ""
+    return "".join(ch for ch in str(value) if ch.isdigit())
+
+
 def build_question_option_map(questao) -> dict:
     return {
         "A": (getattr(questao, "opcao_a", None) or "").strip(),
@@ -662,6 +668,12 @@ Equipe Simulador HFC/GPON
 <p>Atenciosamente,<br>Equipe Simulador HFC/GPON</p>
 """
     sent = send_email(email, subject, body_text, body_html)
+    if not sent:
+        try:
+            pr.used = True
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
     return sent
 
 
@@ -920,7 +932,7 @@ def professor_register():
 def aluno_register():
     if request.method == "POST":
         nome = (request.form.get("nome") or "").strip()
-        cpf = (request.form.get("cpf") or "").strip()
+        cpf = normalize_cpf(request.form.get("cpf") or "")
         empresa = (request.form.get("empresa") or "").strip()
         codigo_convite = (request.form.get("codigo_convite") or "").strip().upper()
         email = (request.form.get("email") or "").strip().lower()
@@ -2004,15 +2016,16 @@ def get_questoes_professor(banco):
 @html_bp.route("/login/aluno", methods=["GET", "POST"])
 def login_aluno():
     if request.method == "POST":
-        cpf = request.form.get("cpf")
-        email = request.form.get("email")
+        cpf = normalize_cpf(request.form.get("cpf") or "")
+        email = (request.form.get("email") or "").strip().lower()
         senha = request.form.get("senha")
 
-        # 🔹 Busca o aluno pelo CPF e email
-        aluno = Aluno.query.filter_by(email=email, cpf=cpf).first()
+        # Busca por e-mail e valida CPF normalizado para tolerar máscara/formatação.
+        aluno = Aluno.query.filter_by(email=email).first()
+        cpf_confere = bool(aluno and normalize_cpf(aluno.cpf) == cpf)
 
         # 🔹 Valida senha
-        if aluno and aluno.check_password(senha):
+        if cpf_confere and aluno.check_password(senha):
             # Salva dados básicos na sessão
             session["usuario"] = {
                 "tipo": "aluno",
@@ -2868,15 +2881,18 @@ def delete_respostas_aluno_turma(turma_id, cpf):
 @html_bp.route("/forgot_password/aluno", methods=["GET", "POST"])
 def forgot_password_aluno():
     if request.method == "POST":
-        cpf = request.form.get("cpf", "").strip()
+        cpf = normalize_cpf(request.form.get("cpf", ""))
         email = request.form.get("email", "").strip().lower()
-        if not cpf or not email:
-            flash("Preencha CPF e e-mail.", "warning")
+        if not email:
+            flash("Preencha o e-mail.", "warning")
             return redirect(url_for("html_bp.forgot_password_aluno"))
 
-        aluno = Aluno.query.filter_by(email=email, cpf=cpf).first()
+        aluno = Aluno.query.filter_by(email=email).first()
+        if aluno and cpf and normalize_cpf(aluno.cpf) != cpf:
+            aluno = None
+
         if not aluno:
-            flash("Aluno não encontrado com esse CPF/e-mail.", "danger")
+            flash("Aluno não encontrado com os dados informados.", "danger")
             return redirect(url_for("html_bp.forgot_password_aluno"))
 
         sent = create_password_reset(user_type="aluno", user_id=aluno.id, email=aluno.email, nome=aluno.nome)
