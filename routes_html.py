@@ -9,6 +9,9 @@ import secrets
 import hashlib
 import smtplib
 import ssl
+import json
+from urllib import request as urllib_request
+from urllib import error as urllib_error
 import unicodedata
 from collections import defaultdict
 from email.message import EmailMessage
@@ -647,6 +650,54 @@ def send_email(to_address: str, subject: str, body_text: str, body_html: str = N
     except Exception as e:
         # Em produção, use logger
         print("Erro ao enviar e-mail:", e)
+        return send_email_via_brevo_api(to_address, subject, body_text, body_html)
+
+
+def send_email_via_brevo_api(to_address: str, subject: str, body_text: str, body_html: str = None) -> bool:
+    """
+    Fallback via API HTTP da Brevo quando SMTP falhar (ex.: timeout de rede na porta 587/465).
+    Requer BREVO_API_KEY.
+    """
+    api_key = os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY")
+    if not api_key:
+        return False
+
+    sender_email = os.getenv("BREVO_SENDER_EMAIL") or os.getenv("SMTP_FROM") or "no-reply@example.com"
+    sender_name = os.getenv("BREVO_SENDER_NAME") or "Simulador HFC/GPON"
+
+    payload = {
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [{"email": to_address}],
+        "subject": subject,
+        "textContent": body_text,
+        "htmlContent": body_html or f"<pre>{body_text}</pre>",
+    }
+
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib_request.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=data,
+        method="POST",
+        headers={
+            "accept": "application/json",
+            "content-type": "application/json",
+            "api-key": api_key,
+        },
+    )
+
+    try:
+        with urllib_request.urlopen(req, timeout=15) as response:
+            status = getattr(response, "status", 200)
+            return 200 <= int(status) < 300
+    except urllib_error.HTTPError as e:
+        try:
+            details = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            details = ""
+        print(f"Erro ao enviar e-mail via Brevo API: HTTP {e.code} {details}")
+        return False
+    except Exception as e:
+        print("Erro ao enviar e-mail via Brevo API:", e)
         return False
 
 
