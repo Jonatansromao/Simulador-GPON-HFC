@@ -582,14 +582,18 @@ def send_email(to_address: str, subject: str, body_text: str, body_html: str = N
     """
     Envia e-mail usando configuração via variáveis de ambiente:
       SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_USE_SSL (optional, default True if port 465)
-    Em dev, se SMTP_HOST não estiver definido, o e-mail será impresso no console.
+    Em dev, se SMTP_DEV_CONSOLE_FALLBACK=true e SMTP_HOST não estiver definido,
+    o e-mail será impresso no console (sem entrega real).
     """
-    smtp_host = os.getenv("SMTP_HOST")
-    smtp_port = int(os.getenv("SMTP_PORT", "465"))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_pass = os.getenv("SMTP_PASS")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user or "no-reply@example.com")
-    use_ssl = os.getenv("SMTP_USE_SSL", "").lower() in ("1", "true", "yes") or smtp_port == 465
+    smtp_host = os.getenv("SMTP_HOST") or os.getenv("MAIL_SERVER")
+    smtp_port = int(os.getenv("SMTP_PORT") or os.getenv("MAIL_PORT") or "465")
+    smtp_user = os.getenv("SMTP_USER") or os.getenv("MAIL_USERNAME")
+    smtp_pass = os.getenv("SMTP_PASS") or os.getenv("MAIL_PASSWORD")
+    smtp_from = os.getenv("SMTP_FROM") or os.getenv("MAIL_DEFAULT_SENDER") or smtp_user or "no-reply@example.com"
+
+    explicit_ssl = (os.getenv("SMTP_USE_SSL") or os.getenv("MAIL_USE_SSL") or "").lower() in ("1", "true", "yes")
+    explicit_tls = (os.getenv("SMTP_USE_TLS") or os.getenv("MAIL_USE_TLS") or "").lower() in ("1", "true", "yes")
+    use_ssl = explicit_ssl or (not explicit_tls and smtp_port == 465)
 
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -600,17 +604,23 @@ def send_email(to_address: str, subject: str, body_text: str, body_html: str = N
         msg.add_alternative(body_html, subtype="html")
 
     if not smtp_host:
-        # Fallback para desenvolvimento: apenas logar no console
-        print("=== send_email (DEV fallback) ===")
-        print("To:", to_address)
-        print("Subject:", subject)
-        print("Body (text):")
-        print(body_text)
-        if body_html:
-            print("Body (html):")
-            print(body_html)
-        print("=== end ===")
-        return True
+        dev_fallback = os.getenv("SMTP_DEV_CONSOLE_FALLBACK", "").lower() in ("1", "true", "yes")
+        is_production = os.getenv("RENDER", "").lower() == "true" or os.getenv("APP_ENV", "").lower() == "production"
+
+        if dev_fallback and not is_production:
+            print("=== send_email (DEV console fallback, sem entrega real) ===")
+            print("To:", to_address)
+            print("Subject:", subject)
+            print("Body (text):")
+            print(body_text)
+            if body_html:
+                print("Body (html):")
+                print(body_html)
+            print("=== end ===")
+            return True
+
+        print("Erro ao enviar e-mail: SMTP_HOST não configurado.")
+        return False
 
     try:
         if use_ssl:
@@ -622,7 +632,9 @@ def send_email(to_address: str, subject: str, body_text: str, body_html: str = N
         else:
             context = ssl.create_default_context()
             with smtplib.SMTP(smtp_host, smtp_port) as server:
-                server.starttls(context=context)
+                # Usa STARTTLS quando configurado explicitamente ou para portas não-SSL.
+                if explicit_tls or smtp_port != 25:
+                    server.starttls(context=context)
                 if smtp_user and smtp_pass:
                     server.login(smtp_user, smtp_pass)
                 server.send_message(msg)
@@ -2899,7 +2911,7 @@ def forgot_password_aluno():
         if sent:
             flash("Um e-mail com instruções para redefinir a senha foi enviado (verifique spam).", "success")
         else:
-            flash("Erro ao enviar e-mail. Tente novamente mais tarde.", "danger")
+            flash("Não foi possível enviar o e-mail de recuperação agora. Verifique a configuração SMTP do sistema e tente novamente.", "danger")
         return redirect(url_for("html_bp.login_aluno"))
 
     return render_template("forgot_password_aluno.html")
@@ -2925,7 +2937,7 @@ def forgot_password_professor():
         if sent:
             flash("Um e-mail com instruções para redefinir a senha foi enviado (verifique spam).", "success")
         else:
-            flash("Erro ao enviar e-mail. Tente novamente mais tarde.", "danger")
+            flash("Não foi possível enviar o e-mail de recuperação agora. Verifique a configuração SMTP do sistema e tente novamente.", "danger")
         return redirect(url_for("html_bp.login_professor"))
 
     return render_template("forgot_password_professor.html")
