@@ -655,18 +655,19 @@ def create_password_reset(user_type: str, user_id: int, email: str, nome: str) -
     Gera token, salva hash no banco e envia e-mail com link de reset.
     user_type: 'aluno' ou 'professor'
     """
-    token = generate_token()
-    token_hash = hash_token(token)
+    try:
+        token = generate_token()
+        token_hash = hash_token(token)
 
-    # salva no banco
-    pr = PasswordReset(token_hash=token_hash, user_type=user_type, user_id=user_id)
-    db.session.add(pr)
-    db.session.commit()
+        # salva no banco
+        pr = PasswordReset(token_hash=token_hash, user_type=user_type, user_id=user_id)
+        db.session.add(pr)
+        db.session.commit()
 
-    reset_url = url_for("html_bp.reset_password", token=token, _external=True)
+        reset_url = url_for("html_bp.reset_password", token=token, _external=True)
 
-    subject = "Redefinição de senha - Simulador HFC/GPON"
-    body_text = f"""Olá {nome},
+        subject = "Redefinição de senha - Simulador HFC/GPON"
+        body_text = f"""Olá {nome},
 
 Você solicitou a redefinição de senha. Acesse o link abaixo para escolher uma nova senha. O link expira em {RESET_TOKEN_EXPIRY//60} minutos.
 
@@ -677,21 +678,25 @@ Se você não solicitou, ignore esta mensagem.
 Atenciosamente,
 Equipe Simulador HFC/GPON
 """
-    body_html = f"""
+        body_html = f"""
 <p>Olá {nome},</p>
 <p>Você solicitou a redefinição de senha. Acesse o link abaixo para escolher uma nova senha. O link expira em <strong>{RESET_TOKEN_EXPIRY//60} minutos</strong>.</p>
 <p><a href="{reset_url}">Redefinir minha senha</a></p>
 <p>Se você não solicitou, ignore esta mensagem.</p>
 <p>Atenciosamente,<br>Equipe Simulador HFC/GPON</p>
 """
-    sent = send_email(email, subject, body_text, body_html)
-    if not sent:
-        try:
-            pr.used = True
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-    return sent
+        sent = send_email(email, subject, body_text, body_html)
+        if not sent:
+            try:
+                pr.used = True
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+        return sent
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Erro ao criar fluxo de recuperação de senha.")
+        return False
 
 
 def validate_token(token: str) -> PasswordReset or None:
@@ -2898,26 +2903,32 @@ def delete_respostas_aluno_turma(turma_id, cpf):
 @html_bp.route("/forgot_password/aluno", methods=["GET", "POST"])
 def forgot_password_aluno():
     if request.method == "POST":
-        cpf = normalize_cpf(request.form.get("cpf", ""))
-        email = request.form.get("email", "").strip().lower()
-        if not email:
-            flash("Preencha o e-mail.", "warning")
+        try:
+            cpf = normalize_cpf(request.form.get("cpf", ""))
+            email = request.form.get("email", "").strip().lower()
+            if not email:
+                flash("Preencha o e-mail.", "warning")
+                return redirect(url_for("html_bp.forgot_password_aluno"))
+
+            aluno = Aluno.query.filter_by(email=email).first()
+            if aluno and cpf and normalize_cpf(aluno.cpf) != cpf:
+                aluno = None
+
+            if not aluno:
+                flash("Aluno não encontrado com os dados informados.", "danger")
+                return redirect(url_for("html_bp.forgot_password_aluno"))
+
+            sent = create_password_reset(user_type="aluno", user_id=aluno.id, email=aluno.email, nome=aluno.nome)
+            if sent:
+                flash("Um e-mail com instruções para redefinir a senha foi enviado (verifique spam).", "success")
+            else:
+                flash("Não foi possível enviar o e-mail de recuperação agora. Verifique a configuração SMTP do sistema e tente novamente.", "danger")
+            return redirect(url_for("html_bp.login_aluno"))
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("Erro ao processar recuperação de senha do aluno.")
+            flash("Erro interno ao processar recuperação de senha. Tente novamente em instantes.", "danger")
             return redirect(url_for("html_bp.forgot_password_aluno"))
-
-        aluno = Aluno.query.filter_by(email=email).first()
-        if aluno and cpf and normalize_cpf(aluno.cpf) != cpf:
-            aluno = None
-
-        if not aluno:
-            flash("Aluno não encontrado com os dados informados.", "danger")
-            return redirect(url_for("html_bp.forgot_password_aluno"))
-
-        sent = create_password_reset(user_type="aluno", user_id=aluno.id, email=aluno.email, nome=aluno.nome)
-        if sent:
-            flash("Um e-mail com instruções para redefinir a senha foi enviado (verifique spam).", "success")
-        else:
-            flash("Não foi possível enviar o e-mail de recuperação agora. Verifique a configuração SMTP do sistema e tente novamente.", "danger")
-        return redirect(url_for("html_bp.login_aluno"))
 
     return render_template("forgot_password_aluno.html")
 
@@ -2928,22 +2939,28 @@ def forgot_password_aluno():
 @html_bp.route("/forgot_password/professor", methods=["GET", "POST"])
 def forgot_password_professor():
     if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        if not email:
-            flash("Preencha o e-mail.", "warning")
-            return redirect(url_for("html_bp.forgot_password_professor"))
+        try:
+            email = request.form.get("email", "").strip().lower()
+            if not email:
+                flash("Preencha o e-mail.", "warning")
+                return redirect(url_for("html_bp.forgot_password_professor"))
 
-        professor = Professor.query.filter_by(email=email).first()
-        if not professor:
-            flash("Professor não encontrado com esse e-mail.", "danger")
-            return redirect(url_for("html_bp.forgot_password_professor"))
+            professor = Professor.query.filter_by(email=email).first()
+            if not professor:
+                flash("Professor não encontrado com esse e-mail.", "danger")
+                return redirect(url_for("html_bp.forgot_password_professor"))
 
-        sent = create_password_reset(user_type="professor", user_id=professor.id, email=professor.email, nome=professor.nome)
-        if sent:
-            flash("Um e-mail com instruções para redefinir a senha foi enviado (verifique spam).", "success")
-        else:
-            flash("Não foi possível enviar o e-mail de recuperação agora. Verifique a configuração SMTP do sistema e tente novamente.", "danger")
-        return redirect(url_for("html_bp.login_professor"))
+            sent = create_password_reset(user_type="professor", user_id=professor.id, email=professor.email, nome=professor.nome)
+            if sent:
+                flash("Um e-mail com instruções para redefinir a senha foi enviado (verifique spam).", "success")
+            else:
+                flash("Não foi possível enviar o e-mail de recuperação agora. Verifique a configuração SMTP do sistema e tente novamente.", "danger")
+            return redirect(url_for("html_bp.login_professor"))
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("Erro ao processar recuperação de senha do professor.")
+            flash("Erro interno ao processar recuperação de senha. Tente novamente em instantes.", "danger")
+            return redirect(url_for("html_bp.forgot_password_professor"))
 
     return render_template("forgot_password_professor.html")
 
