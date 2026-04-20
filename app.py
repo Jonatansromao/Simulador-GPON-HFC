@@ -51,6 +51,7 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config["SECRET_KEY"] = resolve_secret_key()
 app.secret_key = app.config["SECRET_KEY"]
+app.config["APP_VERSION"] = os.getenv("APP_VERSION", "1.1")
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 instance_dir = os.path.join(base_dir, "instance")
@@ -119,7 +120,10 @@ def generate_csrf_token() -> str:
 
 @app.context_processor
 def inject_security_helpers():
-    return {"csrf_token": generate_csrf_token}
+    return {
+        "csrf_token": generate_csrf_token,
+        "app_version": app.config.get("APP_VERSION", "1.0"),
+    }
 
 
 @app.before_request

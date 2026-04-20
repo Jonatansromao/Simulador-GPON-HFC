@@ -122,6 +122,7 @@
     <div class="card-header"><strong>🧠 Cadastro de perguntas (HFC/GPON)</strong></div>
     <div class="card-body">
       <form method="POST" action="{{ url_for('html_bp.admin_add_question') }}">
+        <input type="hidden" name="next" value="{{ current_admin_url }}">
         <div class="row g-3">
           <div class="col-md-3">
             <label class="form-label">Banco</label>
@@ -182,11 +183,11 @@
   </div>
 
   <div class="card shadow-sm mb-4">
-    <div class="card-header"><strong>✏️ Edição de perguntas (últimas 50)</strong></div>
+    <div class="card-header"><strong>✏️ Edição de perguntas</strong></div>
     <div class="card-body p-0">
       <div class="p-3 border-bottom bg-light">
         <form method="GET" action="{{ url_for('html_bp.admin_dashboard') }}" class="row g-2 align-items-end">
-          <div class="col-sm-6 col-md-3">
+          <div class="col-sm-6 col-md-2">
             <label class="form-label mb-1">Filtrar por banco</label>
             <select class="form-select form-select-sm" name="banco">
               <option value="todos" {% if banco_filtro == 'TODOS' %}selected{% endif %}>Todos</option>
@@ -195,9 +196,28 @@
             </select>
           </div>
           <div class="col-sm-6 col-md-3">
+            <label class="form-label mb-1">Filtrar por tema</label>
+            <select class="form-select form-select-sm" name="tema">
+              <option value="todos" {% if tema_filtro == 'TODOS' %}selected{% endif %}>Todos</option>
+              {% for tema in temas_disponiveis %}
+                <option value="{{ tema }}" {% if tema_filtro == tema %}selected{% endif %}>{{ tema }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-12 col-md-4">
+            <label class="form-label mb-1">Buscar (enunciado/tema)</label>
+            <input type="text" class="form-control form-control-sm" name="busca" value="{{ busca_texto or '' }}" placeholder="Ex.: DOCSIS, GPON, sinal...">
+          </div>
+          <div class="col-sm-6 col-md-2">
             <button type="submit" class="btn btn-outline-primary btn-sm w-100">Aplicar filtro</button>
           </div>
+          <div class="col-sm-6 col-md-1">
+            <a href="{{ url_for('html_bp.admin_dashboard') }}" class="btn btn-outline-secondary btn-sm w-100">Limpar</a>
+          </div>
         </form>
+        <small class="text-muted d-block mt-2">
+          {{ paginacao_questoes.total }} questão(ões) encontrada(s) • Página {{ paginacao_questoes.page }} de {{ paginacao_questoes.pages if paginacao_questoes.pages else 1 }}
+        </small>
       </div>
       <div class="table-responsive">
         <table class="table table-striped align-middle mb-0">
@@ -226,6 +246,7 @@
               <tr class="collapse" id="editarQuestao{{ questao.id }}">
                 <td colspan="5" class="bg-light">
                   <form method="POST" action="{{ url_for('html_bp.admin_edit_question', questao_id=questao.id) }}" class="border rounded p-3 bg-white">
+                    <input type="hidden" name="next" value="{{ current_admin_url }}">
                     <div class="row g-2">
                       <div class="col-md-2">
                         <label class="form-label">Banco</label>
@@ -290,6 +311,31 @@
           </tbody>
         </table>
       </div>
+      {% if paginacao_questoes.pages > 1 %}
+      <div class="p-3 border-top bg-light">
+        <nav aria-label="Paginação de questões">
+          <ul class="pagination pagination-sm mb-0 flex-wrap">
+            <li class="page-item {% if not paginacao_questoes.has_prev %}disabled{% endif %}">
+              <a class="page-link" href="{{ url_for('html_bp.admin_dashboard', banco=('todos' if banco_filtro == 'TODOS' else banco_filtro), tema=('todos' if tema_filtro == 'TODOS' else tema_filtro), busca=busca_texto, page=paginacao_questoes.prev_num) }}">Anterior</a>
+            </li>
+
+            {% for p in paginacao_questoes.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+              {% if p %}
+                <li class="page-item {% if p == paginacao_questoes.page %}active{% endif %}">
+                  <a class="page-link" href="{{ url_for('html_bp.admin_dashboard', banco=('todos' if banco_filtro == 'TODOS' else banco_filtro), tema=('todos' if tema_filtro == 'TODOS' else tema_filtro), busca=busca_texto, page=p) }}">{{ p }}</a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+              {% endif %}
+            {% endfor %}
+
+            <li class="page-item {% if not paginacao_questoes.has_next %}disabled{% endif %}">
+              <a class="page-link" href="{{ url_for('html_bp.admin_dashboard', banco=('todos' if banco_filtro == 'TODOS' else banco_filtro), tema=('todos' if tema_filtro == 'TODOS' else tema_filtro), busca=busca_texto, page=paginacao_questoes.next_num) }}">Próxima</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
     </div>
   </div>
 

@@ -171,6 +171,7 @@
           <option value="tema" {% if not selected_theme %}disabled{% endif %}>{{ ('Tema selecionado: ' ~ selected_theme.tema) if selected_theme else 'Tema selecionado' }}</option>
         </select>
         <a id="exportExcelBtn" href="{{ url_for('html_bp.professor_relatorio_temas_excel', scope='geral') }}" class="btn btn-success btn-sm">📥 Excel</a>
+        <a id="exportCsvBtn" href="{{ url_for('html_bp.professor_relatorio_temas_csv', scope='geral') }}" class="btn btn-outline-primary btn-sm">🗂 CSV</a>
         <a id="exportPdfBtn" href="{{ url_for('html_bp.professor_relatorio_temas_pdf', scope='geral') }}" target="_blank" rel="noopener" class="btn btn-danger btn-sm">🧾 PDF</a>
       </div>
       <small class="text-muted">Escolha se deseja baixar o relatório geral ou somente do tema em destaque.</small>
@@ -817,10 +818,11 @@
   function updateReportDownloadLinks() {
     const scopeSelect = document.getElementById("reportScopeSelect");
     const excelBtn = document.getElementById("exportExcelBtn");
+    const csvBtn = document.getElementById("exportCsvBtn");
     const pdfBtn = document.getElementById("exportPdfBtn");
     const selectedTheme = activeTheme;
 
-    if (!scopeSelect || !excelBtn || !pdfBtn) return;
+    if (!scopeSelect || !excelBtn || !csvBtn || !pdfBtn) return;
 
     const selectedScope = scopeSelect.value === "tema" ? "tema" : "geral";
     const buildUrl = (baseHref) => {
@@ -835,6 +837,7 @@
     };
 
     excelBtn.setAttribute("href", buildUrl(excelBtn.getAttribute("href") || excelBtn.href));
+    csvBtn.setAttribute("href", buildUrl(csvBtn.getAttribute("href") || csvBtn.href));
     pdfBtn.setAttribute("href", buildUrl(pdfBtn.getAttribute("href") || pdfBtn.href));
   }
 

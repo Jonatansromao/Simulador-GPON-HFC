@@ -3,6 +3,8 @@
 # Rotas HTML (templates)
 # -----------------------------
 import os
+import csv
+from io import StringIO
 import secrets
 import hashlib
 import smtplib
@@ -533,6 +535,28 @@ def build_export_filename(prefix: str, tema: str | None = None, extension: str =
     suffix = normalize_topic_text(tema).replace(" ", "_") if tema else "geral"
     suffix = suffix or "geral"
     return f"{prefix}_{suffix}.{extension}"
+
+
+def resolve_report_scope_and_theme(performance_insights: dict, scope_param: str | None, tema_param: str | None):
+    scope = (scope_param or "geral").strip().lower()
+    if scope not in {"geral", "tema"}:
+        scope = "geral"
+
+    tema = None
+    if scope == "tema" and (tema_param or "").strip():
+        tema_base = get_selected_theme_insight(performance_insights, tema_param)
+        if tema_base:
+            tema = {
+                **tema_base,
+                "erros_detalhados": [
+                    item for item in (performance_insights.get("erros_detalhados") or [])
+                    if normalize_topic_text(item.get("tema")) == normalize_topic_text(tema_base.get("tema"))
+                ],
+            }
+        else:
+            scope = "geral"
+
+    return scope, tema
 
 
 # -----------------------------
@@ -1144,18 +1168,11 @@ def professor_relatorio_temas_excel():
     professor = Professor.query.get(professor_id)
     performance_insights = build_professor_performance_insights(professor_id)
     tema_param = (request.args.get("tema") or "").strip()
-    scope_param = (request.args.get("scope") or "geral").strip().lower()
-    tema_selecionado = None
-    if scope_param == "tema" and tema_param:
-        tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
-        if tema_selecionado:
-            tema_selecionado = {
-                **tema_selecionado,
-                "erros_detalhados": [
-                    item for item in (performance_insights.get("erros_detalhados") or [])
-                    if normalize_topic_text(item.get("tema")) == normalize_topic_text(tema_selecionado.get("tema"))
-                ],
-            }
+    scope_param, tema_selecionado = resolve_report_scope_and_theme(
+        performance_insights,
+        request.args.get("scope"),
+        tema_param,
+    )
 
     content = render_template(
         "professor_relatorio_excel.html",
@@ -1182,18 +1199,11 @@ def professor_relatorio_temas_pdf():
     professor = Professor.query.get(professor_id)
     performance_insights = build_professor_performance_insights(professor_id)
     tema_param = (request.args.get("tema") or "").strip()
-    scope_param = (request.args.get("scope") or "geral").strip().lower()
-    tema_selecionado = None
-    if scope_param == "tema" and tema_param:
-        tema_selecionado = get_selected_theme_insight(performance_insights, tema_param)
-        if tema_selecionado:
-            tema_selecionado = {
-                **tema_selecionado,
-                "erros_detalhados": [
-                    item for item in (performance_insights.get("erros_detalhados") or [])
-                    if normalize_topic_text(item.get("tema")) == normalize_topic_text(tema_selecionado.get("tema"))
-                ],
-            }
+    scope_param, tema_selecionado = resolve_report_scope_and_theme(
+        performance_insights,
+        request.args.get("scope"),
+        tema_param,
+    )
 
     return render_template(
         "professor_relatorio_pdf.html",
@@ -1203,6 +1213,73 @@ def professor_relatorio_temas_pdf():
         report_scope=scope_param,
         generated_at=format_datetime_local(datetime.utcnow()),
     )
+
+
+@html_bp.route("/professor/relatorio_temas/csv")
+@api_login_required_professor
+@premium_required
+def professor_relatorio_temas_csv():
+    professor_id = session["usuario"]["id"]
+    professor = Professor.query.get(professor_id)
+    performance_insights = build_professor_performance_insights(professor_id)
+    tema_param = (request.args.get("tema") or "").strip()
+    scope_param, tema_selecionado = resolve_report_scope_and_theme(
+        performance_insights,
+        request.args.get("scope"),
+        tema_param,
+    )
+
+    output = StringIO()
+    writer = csv.writer(output, delimiter=";")
+
+    tema_nome = (tema_selecionado or {}).get("tema") if scope_param == "tema" else "Geral"
+    writer.writerow(["Relatorio de dificuldades por tema"])
+    writer.writerow(["Professor", professor.nome if professor else "-"])
+    writer.writerow(["Escopo", "Tema selecionado" if scope_param == "tema" else "Geral"])
+    writer.writerow(["Tema", tema_nome])
+    writer.writerow(["Gerado em", format_datetime_local(datetime.utcnow())])
+    writer.writerow([])
+
+    writer.writerow(["Resumo por tema"])
+    writer.writerow(["Tema", "Erros", "Total", "Taxa de erro (%)", "Alunos afetados"])
+    temas_base = [tema_selecionado] if (scope_param == "tema" and tema_selecionado) else (performance_insights.get("temas") or [])
+    for item in temas_base:
+        writer.writerow([
+            item.get("tema"),
+            item.get("erros", 0),
+            item.get("total", 0),
+            item.get("percentual_erro", 0),
+            item.get("alunos_afetados", 0),
+        ])
+
+    writer.writerow([])
+    writer.writerow(["Detalhamento de erros"])
+    writer.writerow(["Aluno", "Tema", "Pergunta", "Resposta marcada", "Resposta correta", "Data do erro"])
+
+    erros_detalhados = (
+        (tema_selecionado or {}).get("erros_detalhados")
+        if scope_param == "tema"
+        else (performance_insights.get("erros_detalhados") or [])
+    ) or []
+    for erro in erros_detalhados:
+        writer.writerow([
+            erro.get("aluno_nome"),
+            erro.get("tema"),
+            erro.get("texto"),
+            erro.get("resposta_marcada"),
+            erro.get("resposta_correta"),
+            erro.get("data_envio") or "-",
+        ])
+
+    csv_content = "\ufeff" + output.getvalue()
+    output.close()
+
+    response = make_response(csv_content)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename={build_export_filename('relatorio_temas', (tema_selecionado or {}).get('tema') if scope_param == 'tema' else None, 'csv')}"
+    )
+    return response
 
 
 @html_bp.route("/admin/dashboard")
@@ -1253,16 +1330,58 @@ def admin_dashboard():
     if banco_filtro not in {"HFC", "GPON"}:
         banco_filtro = "TODOS"
 
+    busca_texto = (request.args.get("busca") or "").strip()
+    tema_filtro = (request.args.get("tema") or "todos").strip()
+    tema_filtro_normalizado = "TODOS" if tema_filtro.lower() == "todos" else tema_filtro
+    pagina_atual = request.args.get("page", default=1, type=int) or 1
+    itens_por_pagina = 20
+
     questoes_query = Questao.query
     if banco_filtro in {"HFC", "GPON"}:
         questoes_query = questoes_query.filter(Questao.banco == banco_filtro)
 
-    questoes_recentes = (
-        questoes_query
-        .order_by(Questao.id.desc())
-        .limit(50)
-        .all()
+    temas_disponiveis = [
+        tema
+        for (tema,) in (
+            questoes_query
+            .with_entities(Questao.tema)
+            .filter(Questao.tema.isnot(None))
+            .filter(db.func.trim(Questao.tema) != "")
+            .distinct()
+            .order_by(Questao.tema.asc())
+            .all()
+        )
+        if tema
+    ]
+
+    if tema_filtro_normalizado != "TODOS":
+        questoes_query = questoes_query.filter(
+            db.func.lower(db.func.trim(Questao.tema)) == tema_filtro_normalizado.lower()
+        )
+
+    if busca_texto:
+        termo = f"%{busca_texto}%"
+        questoes_query = questoes_query.filter(
+            db.or_(
+                Questao.texto.ilike(termo),
+                Questao.tema.ilike(termo),
+            )
+        )
+
+    paginacao_questoes = questoes_query.order_by(Questao.id.desc()).paginate(
+        page=pagina_atual,
+        per_page=itens_por_pagina,
+        error_out=False,
     )
+    questoes_recentes = paginacao_questoes.items
+
+    current_query_params = {
+        "banco": banco_filtro if banco_filtro in {"HFC", "GPON"} else "todos",
+        "tema": tema_filtro_normalizado if tema_filtro_normalizado != "TODOS" else "todos",
+        "busca": busca_texto,
+        "page": pagina_atual,
+    }
+    current_admin_url = url_for("html_bp.admin_dashboard", **current_query_params)
 
     return render_template(
         "admin_dashboard.html",
@@ -1274,7 +1393,12 @@ def admin_dashboard():
         pagamentos_pendentes=pagamentos_pendentes,
         professores=professores_data,
         questoes_recentes=questoes_recentes,
+        paginacao_questoes=paginacao_questoes,
         banco_filtro=banco_filtro,
+        tema_filtro=tema_filtro_normalizado,
+        temas_disponiveis=temas_disponiveis,
+        busca_texto=busca_texto,
+        current_admin_url=current_admin_url,
     )
 
 
@@ -1323,21 +1447,28 @@ def admin_add_question():
     tema = (request.form.get("tema") or "").strip()
     imagem = (request.form.get("imagem") or "").strip()
 
+    next_url = (request.form.get("next") or "").strip()
+
+    def redirect_admin_default():
+        if next_url.startswith("/"):
+            return redirect(next_url)
+        return redirect(url_for("html_bp.admin_dashboard"))
+
     if banco not in {"HFC", "GPON"}:
         flash("Selecione um banco valido (HFC ou GPON).", "warning")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     if not texto:
         flash("A pergunta nao pode ficar vazia.", "warning")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     if not all([opcao_a, opcao_b, opcao_c, opcao_d]):
         flash("Preencha todas as alternativas A, B, C e D.", "warning")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     if correta not in {"A", "B", "C", "D"}:
         flash("A alternativa correta deve ser A, B, C ou D.", "warning")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     duplicada = Questao.query.filter(
         Questao.banco == banco,
@@ -1345,7 +1476,7 @@ def admin_add_question():
     ).first()
     if duplicada:
         flash("Essa pergunta ja existe no banco selecionado.", "info")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     nova_questao = Questao(
         texto=texto,
@@ -1363,7 +1494,7 @@ def admin_add_question():
     db.session.commit()
 
     flash(f"Pergunta adicionada com sucesso no banco {banco}.", "success")
-    return redirect(url_for("html_bp.admin_dashboard"))
+    return redirect_admin_default()
 
 
 @html_bp.route("/admin/questoes/<int:questao_id>/editar", methods=["POST"])
@@ -1371,6 +1502,12 @@ def admin_add_question():
 @admin_required
 def admin_edit_question(questao_id):
     questao = Questao.query.get_or_404(questao_id)
+    next_url = (request.form.get("next") or "").strip()
+
+    def redirect_admin_default():
+        if next_url.startswith("/"):
+            return redirect(next_url)
+        return redirect(url_for("html_bp.admin_dashboard"))
 
     banco = (request.form.get("banco") or "").strip().upper()
     texto = (request.form.get("texto") or "").strip()
@@ -1384,19 +1521,19 @@ def admin_edit_question(questao_id):
 
     if banco not in {"HFC", "GPON"}:
         flash("Selecione um banco valido (HFC ou GPON).", "warning")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     if not texto:
         flash("A pergunta nao pode ficar vazia.", "warning")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     if not all([opcao_a, opcao_b, opcao_c, opcao_d]):
         flash("Preencha todas as alternativas A, B, C e D.", "warning")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     if correta not in {"A", "B", "C", "D"}:
         flash("A alternativa correta deve ser A, B, C ou D.", "warning")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     duplicada = Questao.query.filter(
         Questao.id != questao.id,
@@ -1405,7 +1542,7 @@ def admin_edit_question(questao_id):
     ).first()
     if duplicada:
         flash("Ja existe outra pergunta igual nesse banco.", "info")
-        return redirect(url_for("html_bp.admin_dashboard"))
+        return redirect_admin_default()
 
     questao.banco = banco
     questao.texto = texto
@@ -1419,7 +1556,7 @@ def admin_edit_question(questao_id):
 
     db.session.commit()
     flash(f"Pergunta #{questao.id} atualizada com sucesso.", "success")
-    return redirect(url_for("html_bp.admin_dashboard"))
+    return redirect_admin_default()
 
 
 @html_bp.route("/aluno/dashboard", methods=["GET", "POST"])
