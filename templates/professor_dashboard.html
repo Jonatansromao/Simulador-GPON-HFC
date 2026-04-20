@@ -174,8 +174,12 @@
         <a id="exportPdfBtn" href="{{ url_for('html_bp.professor_relatorio_temas_pdf', scope='geral') }}" target="_blank" rel="noopener" class="btn btn-danger btn-sm">🧾 PDF</a>
       </div>
       <small class="text-muted">Escolha se deseja baixar o relatório geral ou somente do tema em destaque.</small>
+      <button id="toggleDificuldadesTemaBtn" class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleSection('dificuldadesTemaCollapse', 'toggleDificuldadesTemaBtn', '↕ Expandir detalhes', '↕ Diminuir detalhes')" aria-expanded="true" aria-controls="dificuldadesTemaCollapse">
+        ↕ Diminuir detalhes
+      </button>
     </div>
 
+    <div id="dificuldadesTemaCollapse">
     {% if performance_insights.total_respostas %}
       <div class="row g-3 mb-3">
         <div class="col-lg-6">
@@ -300,9 +304,15 @@
               <small id="selectedThemeSummary" class="text-muted">Clique em um tema da tabela para abrir os detalhes.</small>
             {% endif %}
           </div>
-          <span id="selectedThemeBadge" class="badge bg-primary">{{ selected_theme.tema if selected_theme else 'Nenhum tema selecionado' }}</span>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span id="selectedThemeBadge" class="badge bg-primary">{{ selected_theme.tema if selected_theme else 'Nenhum tema selecionado' }}</span>
+            <button id="toggleDetalheTemaBtn" class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleSection('detalheTemaCollapse', 'toggleDetalheTemaBtn', '↕ Expandir detalhes', '↕ Diminuir detalhes')" aria-expanded="true" aria-controls="detalheTemaCollapse">
+              ↕ Diminuir detalhes
+            </button>
+          </div>
         </div>
 
+        <div id="detalheTemaCollapse">
         <div id="selectedThemeStudentsGrid" class="row g-3">
           {% if selected_theme and selected_theme.top_alunos %}
             {% for item in selected_theme.top_alunos %}
@@ -328,6 +338,7 @@
             </div>
           {% endif %}
         </div>
+        </div>
       </div>
 
       <div id="detalhe-aluno" class="border rounded p-3 mt-3 bg-white">
@@ -345,9 +356,15 @@
               <small id="selectedStudentSummary" class="text-muted">Clique no nome de um aluno acima para ver exatamente onde ele mais erra.</small>
             {% endif %}
           </div>
-          <span id="selectedStudentBadge" class="badge bg-info text-dark">{{ selected_student.nome if selected_student else 'Nenhum aluno selecionado' }}</span>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span id="selectedStudentBadge" class="badge bg-info text-dark">{{ selected_student.nome if selected_student else 'Nenhum aluno selecionado' }}</span>
+            <button id="toggleDetalheAlunoBtn" class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleSection('detalheAlunoCollapse', 'toggleDetalheAlunoBtn', '↕ Expandir detalhes', '↕ Diminuir detalhes')" aria-expanded="true" aria-controls="detalheAlunoCollapse">
+              ↕ Diminuir detalhes
+            </button>
+          </div>
         </div>
 
+        <div id="detalheAlunoCollapse">
         <div class="row g-3">
           <div class="col-lg-5">
             <div class="border rounded p-3 h-100 bg-light">
@@ -414,10 +431,12 @@
             </div>
           </div>
         </div>
+        </div>
       </div>
     {% else %}
       <p class="text-muted mb-0">Quando os alunos responderem simulados e turmas, este painel mostrará automaticamente os temas com mais dificuldade.</p>
     {% endif %}
+    </div>
   </div>
 
   <!-- Cadastro de Turma -->
@@ -636,6 +655,16 @@
     const oculto = painel.classList.toggle("d-none");
     botao.textContent = oculto ? "↕ Expandir lista" : "↕ Diminuir lista";
     botao.setAttribute("aria-expanded", oculto ? "false" : "true");
+  }
+
+  function toggleSection(sectionId, buttonId, expandText, collapseText) {
+    const section = document.getElementById(sectionId);
+    const button = document.getElementById(buttonId);
+    if (!section || !button) return;
+
+    const hidden = section.classList.toggle("d-none");
+    button.textContent = hidden ? expandText : collapseText;
+    button.setAttribute("aria-expanded", hidden ? "false" : "true");
   }
 
   function renderSolicitacoesPendentes(alunos) {
