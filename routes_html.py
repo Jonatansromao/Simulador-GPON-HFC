@@ -586,7 +586,12 @@ def send_email(to_address: str, subject: str, body_text: str, body_html: str = N
     o e-mail será impresso no console (sem entrega real).
     """
     smtp_host = os.getenv("SMTP_HOST") or os.getenv("MAIL_SERVER")
-    smtp_port = int(os.getenv("SMTP_PORT") or os.getenv("MAIL_PORT") or "465")
+    raw_smtp_port = os.getenv("SMTP_PORT") or os.getenv("MAIL_PORT") or "465"
+    try:
+        smtp_port = int(str(raw_smtp_port).strip())
+    except (TypeError, ValueError):
+        print(f"Erro ao enviar e-mail: SMTP_PORT inválido ({raw_smtp_port}).")
+        return False
     smtp_user = os.getenv("SMTP_USER") or os.getenv("MAIL_USERNAME")
     smtp_pass = os.getenv("SMTP_PASS") or os.getenv("MAIL_PASSWORD")
     smtp_from = os.getenv("SMTP_FROM") or os.getenv("MAIL_DEFAULT_SENDER") or smtp_user or "no-reply@example.com"
