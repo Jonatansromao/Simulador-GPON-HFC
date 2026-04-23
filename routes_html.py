@@ -1220,6 +1220,8 @@ def professor_dashboard():
     invite_code = ensure_professor_invite_code(professor)
     subscription_status = "Free"
     expires_at = None
+    is_trial_period = False
+    trial_days_left = None
     solicitacoes_pendentes = []
     alunos_vinculados = []
     total_alunos_aprovados = 0
@@ -1243,6 +1245,19 @@ def professor_dashboard():
             subscription_status = "Premium"
             expires_at = professor.premium_expires_at.strftime("%d/%m/%Y") if professor.premium_expires_at else None
 
+            has_completed_payment = Payment.query.filter_by(
+                professor_id=professor.id,
+                status="completed",
+            ).first() is not None
+
+            if not has_completed_payment and professor.premium_expires_at:
+                is_trial_period = True
+                delta = professor.premium_expires_at - datetime.utcnow()
+                if delta.total_seconds() > 0:
+                    trial_days_left = delta.days + (1 if (delta.seconds > 0 or delta.microseconds > 0) else 0)
+                else:
+                    trial_days_left = 0
+
     performance_insights = build_professor_performance_insights(professor_id)
     tema_param = (request.args.get("tema") or "").strip()
     aluno_param = (request.args.get("aluno") or "").strip()
@@ -1263,6 +1278,8 @@ def professor_dashboard():
         turmas=turmas,
         subscription_status=subscription_status,
         expires_at=expires_at,
+        is_trial_period=is_trial_period,
+        trial_days_left=trial_days_left,
         invite_code=invite_code,
         solicitacoes_pendentes=solicitacoes_pendentes,
         alunos_vinculados=alunos_vinculados,

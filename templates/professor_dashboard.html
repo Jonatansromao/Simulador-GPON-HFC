@@ -20,6 +20,11 @@
     {% if expires_at %}
       <span>— Vigente até <strong>{{ expires_at }}</strong></span>
     {% endif %}
+    {% if is_trial_period %}
+      <span class="badge bg-warning text-dark ms-2">
+        Teste grátis: {{ trial_days_left }} dia(s) restante(s)
+      </span>
+    {% endif %}
     {% if subscription_status == 'Free' %}
       <span class="text-warning"> — Apenas o perfil está disponível até assinar.</span>
     {% endif %}
