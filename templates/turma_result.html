@@ -192,19 +192,33 @@
     function enviarBulkDelete(tentativas) {
         fetch(`/bulk_delete_tentativas/${TURMA_ID}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
             body: JSON.stringify({ tentativas })
         })
-        .then(r => r.json())
+        .then(async (r) => {
+            let data = {};
+            try {
+                data = await r.json();
+            } catch (_) {
+                data = {};
+            }
+            if (!r.ok || !data.ok) {
+                const msg = data.error || data.erro || data.message || `HTTP ${r.status}`;
+                throw new Error(msg);
+            }
+            return data;
+        })
         .then(data => {
             if (data.ok) {
                 alert(`${data.deleted} resposta(s) excluída(s) com sucesso.`);
                 location.reload();
-            } else {
-                alert('Erro ao excluir: ' + (data.error || 'desconhecido'));
             }
         })
-        .catch(() => alert('Erro de comunicação com o servidor.'));
+        .catch((err) => alert('Erro ao excluir: ' + (err?.message || 'desconhecido')));
     }
 
     // ---- Data local ----
