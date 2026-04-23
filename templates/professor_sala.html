@@ -107,14 +107,12 @@
   </div>
 
   <div class="card shadow-sm mb-3">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <span>📝 Questões desta turma</span>
-      <div class="d-flex flex-wrap gap-2 align-items-center">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span class="fw-semibold">📝 Questões desta turma</span>
+      <div class="d-flex flex-wrap align-items-center gap-2 ms-md-auto">
+        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-expandir-questoes" {% if not questoes_turma %}disabled{% endif %}>📖 Expandir</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-minimizar-questoes" {% if not questoes_turma %}disabled{% endif %}>📕 Diminuir</button>
         <span class="badge bg-secondary">{{ questoes_turma|length }} questão(ões)</span>
-        {% if questoes_turma %}
-          <button type="button" class="btn btn-outline-primary btn-sm" id="btn-expandir-questoes">Expandir todas</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-minimizar-questoes">Minimizar todas</button>
-        {% endif %}
       </div>
     </div>
     <div class="card-body">
