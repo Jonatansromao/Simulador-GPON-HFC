@@ -52,6 +52,8 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config["SECRET_KEY"] = resolve_secret_key()
 app.secret_key = app.config["SECRET_KEY"]
 app.config["APP_VERSION"] = os.getenv("APP_VERSION", "1.5")
+app.config["TUTORIAL_PROFESSOR_URL"] = os.getenv("TUTORIAL_PROFESSOR_URL", "")
+app.config["TUTORIAL_ALUNO_URL"] = os.getenv("TUTORIAL_ALUNO_URL", "")
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
 instance_dir = os.path.join(base_dir, "instance")
@@ -123,6 +125,8 @@ def inject_security_helpers():
     return {
         "csrf_token": generate_csrf_token,
         "app_version": app.config.get("APP_VERSION", "1.0"),
+        "tutorial_professor_url": app.config.get("TUTORIAL_PROFESSOR_URL", ""),
+        "tutorial_aluno_url": app.config.get("TUTORIAL_ALUNO_URL", ""),
     }
 
 

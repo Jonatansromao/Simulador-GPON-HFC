@@ -52,6 +52,61 @@
             <hr>
             <small><strong>Autor:</strong> Jonatan da Silva Romao • Plataforma proprietária com todos os direitos reservados.</small>
         </div>
+
+        <div class="card shadow-lg border-0 mt-4 tutorial-card">
+            <div class="card-body text-dark">
+                <h4 class="mb-3">🎥 Tutoriais em Vídeo</h4>
+                <p class="text-muted mb-4">Assista ao passo a passo completo para cada perfil.</p>
+
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <div class="p-3 border rounded bg-light h-100">
+                            <h5 class="mb-2">👨‍🏫 Tutorial do Professor</h5>
+                            <p class="text-muted small">Cadastro, criação de turmas, controle da sala, resultados e relatórios.</p>
+                            {% if tutorial_professor_url %}
+                                <div class="ratio ratio-16x9 rounded overflow-hidden border">
+                                    <iframe
+                                        src="{{ tutorial_professor_url }}"
+                                        title="Tutorial do Professor"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowfullscreen
+                                    ></iframe>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning mb-0 small">
+                                    Vídeo do professor ainda não configurado.
+                                    <br>
+                                    Defina a variável <strong>TUTORIAL_PROFESSOR_URL</strong> no ambiente (link embed do YouTube/Vimeo).
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="p-3 border rounded bg-light h-100">
+                            <h5 class="mb-2">🎓 Tutorial do Aluno</h5>
+                            <p class="text-muted small">Cadastro, entrar na turma, marcar pronto, fazer o quiz e visualizar resultado.</p>
+                            {% if tutorial_aluno_url %}
+                                <div class="ratio ratio-16x9 rounded overflow-hidden border">
+                                    <iframe
+                                        src="{{ tutorial_aluno_url }}"
+                                        title="Tutorial do Aluno"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowfullscreen
+                                    ></iframe>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning mb-0 small">
+                                    Vídeo do aluno ainda não configurado.
+                                    <br>
+                                    Defina a variável <strong>TUTORIAL_ALUNO_URL</strong> no ambiente (link embed do YouTube/Vimeo).
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -77,6 +132,7 @@
     h1 { color: #fff; }
     .card { transition: transform 0.2s ease-in-out; }
     .card:hover { transform: translateY(-5px); }
+    .tutorial-card:hover { transform: none; }
 
     @media (max-width: 768px) {
         .overlay { padding: 20px; }
