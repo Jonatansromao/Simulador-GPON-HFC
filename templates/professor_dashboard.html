@@ -21,8 +21,9 @@
       <span>— Vigente até <strong>{{ expires_at }}</strong></span>
     {% endif %}
     {% if is_trial_period %}
+      {% set trial_label = 'dia restante' if trial_days_left == 1 else 'dias restantes' %}
       <span class="badge bg-warning text-dark ms-2">
-        Teste grátis: {{ trial_days_left }} dia(s) restante(s)
+        Teste grátis: {{ trial_days_left }} {{ trial_label }}
       </span>
     {% endif %}
     {% if subscription_status == 'Free' %}
