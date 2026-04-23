@@ -226,8 +226,13 @@ def ensure_schema_updates():
         turma_columns = {col["name"] for col in inspector.get_columns("turmas")}
         if "auto_restart_enabled" not in turma_columns:
             execute_statement("ALTER TABLE turmas ADD COLUMN auto_restart_enabled BOOLEAN DEFAULT FALSE")
+        if "exibir_respostas" not in turma_columns:
+            execute_statement("ALTER TABLE turmas ADD COLUMN exibir_respostas BOOLEAN DEFAULT TRUE")
         execute_statement(
             "UPDATE turmas SET auto_restart_enabled = FALSE WHERE auto_restart_enabled IS NULL"
+        )
+        execute_statement(
+            "UPDATE turmas SET exibir_respostas = TRUE WHERE exibir_respostas IS NULL"
         )
 
     if "questao" in tables:

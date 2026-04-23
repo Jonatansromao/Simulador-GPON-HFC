@@ -93,6 +93,7 @@ class Turma(db.Model):
     data = db.Column(db.Date, nullable=False)
     status = db.Column(db.String(20), default="Aguardando")
     auto_restart_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    exibir_respostas = db.Column(db.Boolean, default=True, nullable=False)
 
     professor_id = db.Column(db.Integer, db.ForeignKey("professores.id"), nullable=False)
     sheet_name = db.Column(db.String(50), nullable=True)

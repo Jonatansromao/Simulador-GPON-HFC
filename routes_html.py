@@ -832,6 +832,7 @@ def build_turma_realtime_payload(turma):
         "total": len(turma.matriculas),
         "alunos": alunos_data,
         "auto_restart_enabled": bool(getattr(turma, "auto_restart_enabled", False)),
+        "exibir_respostas": bool(getattr(turma, "exibir_respostas", True)),
     }
 
 
@@ -1140,6 +1141,7 @@ def professor_dashboard():
                 status="Aguardando",
                 sheet_name=banco,
                 auto_restart_enabled=bool(request.form.get("auto_restart_enabled")),
+                exibir_respostas=bool(request.form.get("exibir_respostas")),
             )
             db.session.add(turma)
             db.session.flush()
@@ -2303,6 +2305,22 @@ def iniciar_quiz(turma_id):
     turma.status = "Em andamento"
     db.session.commit()
     return build_professor_turma_action_response(turma, "Quiz iniciado com sucesso!", "success")
+
+
+@html_bp.route("/turma/<int:turma_id>/toggle_exibir_respostas", methods=["POST"])
+@api_login_required_professor
+@premium_required
+def toggle_exibir_respostas_turma(turma_id):
+    turma = Turma.query.filter_by(id=turma_id, professor_id=session["usuario"]["id"]).first_or_404()
+    turma.exibir_respostas = not bool(getattr(turma, "exibir_respostas", True))
+    db.session.commit()
+
+    mensagem = (
+        "Os alunos agora podem ver as respostas desta turma."
+        if turma.exibir_respostas
+        else "As respostas desta turma foram ocultadas para os alunos."
+    )
+    return build_professor_turma_action_response(turma, mensagem, "info")
 
 
 @html_bp.route("/start_quiz")

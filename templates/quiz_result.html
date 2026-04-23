@@ -105,11 +105,16 @@
         <!-- 🔹 Pontuação -->
         <div class="score-box">
             <p><strong>Sua nota:</strong> {{ nota|default(0)|round(1) }}</p>
+          {% if not turma or turma.exibir_respostas %}
             <p><strong>Total de questões:</strong> {{ total }}</p>
             <p><strong>Acertos:</strong> {{ total_correct }} / {{ total }}</p>
             <p><strong>Erros:</strong> {{ total_wrong|default(total - total_correct) }} / {{ total }}</p>
+          {% else %}
+          <p><strong>Resultado detalhado:</strong> oculto pelo professor para esta turma.</p>
+          {% endif %}
         </div>
 
+        {% if not turma or turma.exibir_respostas %}
         <!-- 🔹 Detalhes das respostas -->
         {% set page_size = 25 %}
         {% set total_pages = ((results|length + page_size - 1) // page_size) if results else 1 %}
@@ -152,6 +157,7 @@
             <span id="pageIndicator">Página 1 de {{ total_pages }}</span>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="nextPageBtn">Próxima ➡</button>
         </div>
+        {% endif %}
         {% endif %}
 
         <!-- 🔹 Botões -->

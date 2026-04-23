@@ -136,7 +136,9 @@ def api_professor_dashboard():
             "sheet_name": t.sheet_name,
             "status": t.status,
             "alunos": alunos_count,
-            "prontos": prontos_count
+            "prontos": prontos_count,
+            "auto_restart_enabled": bool(getattr(t, "auto_restart_enabled", False)),
+            "exibir_respostas": bool(getattr(t, "exibir_respostas", True)),
         })
 
     solicitacoes_pendentes = Aluno.query.filter_by(

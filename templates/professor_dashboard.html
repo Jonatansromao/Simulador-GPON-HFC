@@ -472,6 +472,11 @@
             <label class="form-check-label" for="autoRestartAleatoria">Ativar modo automático nesta sala</label>
             <div class="text-muted small">Quando todos os alunos ficarem prontos, o quiz inicia sozinho e a sala volta a ficar pronta para novo ciclo sem depender do professor.</div>
           </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="exibirRespostasAleatoria" name="exibir_respostas" value="1" checked>
+            <label class="form-check-label" for="exibirRespostasAleatoria">Permitir que alunos vejam as respostas no resultado</label>
+            <div class="text-muted small">Desative para mostrar somente a nota e o resumo, sem exibir gabarito/detalhes por questão.</div>
+          </div>
           <button type="submit" class="btn btn-success w-100 btn-option"><span>🎲</span> Gerar Avaliação Aleatória</button>
         </form>
       </div>
@@ -494,6 +499,11 @@
             <input class="form-check-input" type="checkbox" id="autoRestartManual" name="auto_restart_enabled" value="1">
             <label class="form-check-label" for="autoRestartManual">Ativar modo automático nesta sala</label>
             <div class="text-muted small">Ideal para a turma específica em que os alunos podem refazer sem você precisar iniciar ou reiniciar manualmente.</div>
+          </div>
+          <div class="form-check form-switch mb-3">
+            <input class="form-check-input" type="checkbox" id="exibirRespostasManual" name="exibir_respostas" value="1" checked>
+            <label class="form-check-label" for="exibirRespostasManual">Permitir que alunos vejam as respostas no resultado</label>
+            <div class="text-muted small">Desative para ocultar respostas detalhadas e gabarito para os alunos desta turma.</div>
           </div>
           <h5>Selecione as questões:</h5>
           {% raw %}
@@ -571,6 +581,11 @@
             {% if turma.auto_restart_enabled %}
               <br><span class="badge bg-info text-dark mt-1">Automático</span>
             {% endif %}
+            {% if turma.exibir_respostas %}
+              <br><span class="badge bg-success mt-1">Respostas visíveis</span>
+            {% else %}
+              <br><span class="badge bg-secondary mt-1">Respostas ocultas</span>
+            {% endif %}
           </td>
           <td>{{ turma.alunos|length }}</td>
           <td>{{ turma.prontos }}</td>
@@ -579,6 +594,11 @@
               <a href="{{ url_for('html_bp.professor_sala', turma_id=turma.id) }}" class="btn btn-info" title="Acompanhar sala">👁</a>
               <a href="/turma_result/{{ turma.id }}" class="btn btn-primary">📊</a>
               <button class="btn btn-danger" onclick="excluirTurma({{ turma.id }})">🗑</button>
+              <form method="POST" action="{{ url_for('html_bp.toggle_exibir_respostas_turma', turma_id=turma.id) }}" style="display:inline;">
+                <button type="submit" class="btn btn-dark" title="Alternar visibilidade das respostas para alunos">
+                  {% if turma.exibir_respostas %}🙈{% else %}👁{% endif %}
+                </button>
+              </form>
               {% if turma.status == "Aguardando" %}
                 <form method="POST" action="/iniciar_quiz/{{ turma.id }}" style="display:inline;">
                   <button type="submit" class="btn btn-success">▶</button>
@@ -607,11 +627,15 @@
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
   function renderizarAcoesTurma(data) {
+    const respostasVisiveis = data.exibir_respostas !== false;
     let html = `
       <div class="btn-group btn-group-sm" role="group" aria-label="Ações">
         <a href="/professor/sala/${data.id}" class="btn btn-info" title="Acompanhar sala">👁</a>
         <a href="/turma_result/${data.id}" class="btn btn-primary">📊</a>
         <button class="btn btn-danger" onclick="excluirTurma(${data.id})">🗑</button>
+        <form method="POST" action="/turma/${data.id}/toggle_exibir_respostas" style="display:inline;">
+          <button type="submit" class="btn btn-dark" title="Alternar visibilidade das respostas para alunos">${respostasVisiveis ? '🙈' : '👁'}</button>
+        </form>
     `;
 
     if (data.status === "Aguardando") {
@@ -626,11 +650,26 @@
     return html;
   }
 
+  function renderizarStatusTurma(data) {
+    const auto = Boolean(data.auto_restart_enabled);
+    const exibirRespostas = data.exibir_respostas !== false;
+    let html = `${escapeHtml(data.status ?? "")}`;
+    if (auto) {
+      html += '<br><span class="badge bg-info text-dark mt-1">Automático</span>';
+    }
+    if (exibirRespostas) {
+      html += '<br><span class="badge bg-success mt-1">Respostas visíveis</span>';
+    } else {
+      html += '<br><span class="badge bg-secondary mt-1">Respostas ocultas</span>';
+    }
+    return html;
+  }
+
   function atualizarLinhaTurma(data) {
     const row = document.querySelector(`#turmas-body tr[data-id="${data.id}"]`);
     if (!row) return;
 
-    row.querySelector("td:nth-child(5)").textContent = data.status ?? "";
+    row.querySelector("td:nth-child(5)").innerHTML = renderizarStatusTurma(data);
     row.querySelector("td:nth-child(6)").textContent = data.total ?? 0;
     row.querySelector("td:nth-child(7)").textContent = data.prontos ?? 0;
 
@@ -788,6 +827,8 @@
           status: turma.status,
           total: turma.alunos,
           prontos: turma.prontos,
+          auto_restart_enabled: turma.auto_restart_enabled,
+          exibir_respostas: turma.exibir_respostas,
         });
       });
 
