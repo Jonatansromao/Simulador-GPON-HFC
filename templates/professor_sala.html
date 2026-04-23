@@ -110,12 +110,13 @@
     <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
       <span class="fw-semibold">📝 Questões desta turma</span>
       <div class="d-flex flex-wrap align-items-center gap-2 ms-md-auto">
-        <button type="button" class="btn btn-outline-primary btn-sm" id="btn-expandir-questoes" {% if not questoes_turma %}disabled{% endif %}>📖 Expandir</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-minimizar-questoes" {% if not questoes_turma %}disabled{% endif %}>📕 Diminuir</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="toggleQuestoesTurmaBtn" {% if not questoes_turma %}disabled{% endif %} aria-expanded="true" aria-controls="questoesTurmaCollapse">
+          ↕ Diminuir lista
+        </button>
         <span class="badge bg-secondary">{{ questoes_turma|length }} questão(ões)</span>
       </div>
     </div>
-    <div class="card-body">
+    <div class="card-body" id="questoesTurmaCollapse">
       {% if questoes_turma %}
         <div class="list-group list-group-flush">
           {% for questao in questoes_turma %}
@@ -200,6 +201,16 @@
         `).join('')}
       </ul>
     `;
+  }
+
+  function toggleQuestoesTurma() {
+    const painel = document.getElementById('questoesTurmaCollapse');
+    const botao = document.getElementById('toggleQuestoesTurmaBtn');
+    if (!painel || !botao) return;
+
+    const oculto = painel.classList.toggle('d-none');
+    botao.textContent = oculto ? '↕ Expandir lista' : '↕ Diminuir lista';
+    botao.setAttribute('aria-expanded', oculto ? 'false' : 'true');
   }
 
   function renderModoAutomatico(enabled) {
@@ -363,19 +374,9 @@
   socket.on('alunos_prontos_atualizado', applySalaUpdate);
 
   document.addEventListener('click', (event) => {
-    const expandAllBtn = event.target.closest('#btn-expandir-questoes');
-    if (expandAllBtn) {
-      document.querySelectorAll('.questao-item').forEach((item) => {
-        item.open = true;
-      });
-      return;
-    }
-
-    const collapseAllBtn = event.target.closest('#btn-minimizar-questoes');
-    if (collapseAllBtn) {
-      document.querySelectorAll('.questao-item').forEach((item) => {
-        item.open = false;
-      });
+    const toggleQuestoesBtn = event.target.closest('#toggleQuestoesTurmaBtn');
+    if (toggleQuestoesBtn) {
+      toggleQuestoesTurma();
       return;
     }
 
