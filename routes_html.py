@@ -1829,10 +1829,20 @@ def sala_espera(turma_id):
 def professor_sala(turma_id):
     turma = Turma.query.filter_by(id=turma_id, professor_id=session["usuario"]["id"]).first_or_404()
     payload = build_turma_realtime_payload(turma)
+    questoes_turma = [
+        {
+            "id": q.id,
+            "texto": q.texto,
+            "tema": infer_question_theme(q),
+            "banco": q.banco,
+        }
+        for q in sorted(turma.questoes, key=lambda item: item.id)
+    ]
 
     return render_template(
         "professor_sala.html",
         turma=turma,
+        questoes_turma=questoes_turma,
         alunos=payload["alunos"],
         total=payload["total"],
         prontos=payload["prontos"],

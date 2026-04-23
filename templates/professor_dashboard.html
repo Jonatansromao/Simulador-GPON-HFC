@@ -809,6 +809,26 @@
     reconnectionAttempts: 10,
   });
 
+  async function executarAcaoTurmaSemReload(actionUrl) {
+    try {
+      const response = await fetch(actionUrl, {
+        method: "POST",
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        alert(data.message || "Não foi possível executar esta ação agora.");
+        return;
+      }
+
+      atualizarLinhaTurma(data);
+    } catch (error) {
+      console.error("Erro ao executar ação da turma:", error);
+      alert("Erro inesperado ao executar ação da turma.");
+    }
+  }
+
   socket.on("status_turma_atualizado", atualizarLinhaTurma);
   socket.on("alunos_prontos_atualizado", atualizarLinhaTurma);
   socket.on("painel_professor_atualizado", () => {
@@ -1070,6 +1090,18 @@
       detalheAluno?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
+  });
+
+  document.addEventListener("submit", (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) return;
+
+    const action = form.getAttribute("action") || "";
+    const isTurmaAction = /^\/(iniciar_quiz|encerrar_quiz|resetar_turma)\/\d+$/.test(action);
+    if (!isTurmaAction) return;
+
+    event.preventDefault();
+    executarAcaoTurmaSemReload(action);
   });
 
   const reportScopeSelect = document.getElementById("reportScopeSelect");
