@@ -532,13 +532,25 @@ def turma_result(turma_id):
 @api_bp.route("/api/sala_espera/<int:turma_id>")
 def api_sala_espera(turma_id):
     turma = Turma.query.get_or_404(turma_id)
-    em_andamento = (str(turma.status or "").lower() == "em andamento")
+
+    status_turma = str(turma.status or "").lower()
+
+    def resolve_aluno_status(matricula):
+        if bool(getattr(matricula, "finalizou", False)):
+            return "finalizou"
+        if status_turma == "em andamento":
+            return "em andamento"
+        if bool(getattr(matricula, "pronto", False)):
+            return "pronto"
+        return "aguardando"
+
     alunos = [
         {
             "aluno_id": m.aluno_id,
             "nome": m.aluno.nome,
             "email": m.aluno.email,
-            "pronto": bool(m.finalizou if em_andamento else m.pronto),
+            "aluno_status": resolve_aluno_status(m),
+            "pronto": resolve_aluno_status(m) in {"pronto", "finalizou"},
             "finalizou": bool(getattr(m, "finalizou", False)),
         }
         for m in Matricula.query.filter_by(turma_id=turma.id).all()

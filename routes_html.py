@@ -816,13 +816,24 @@ def admin_required(f):
 # Funções utilitárias de atualização em tempo real
 # -----------------------------
 def build_turma_realtime_payload(turma):
-    em_andamento = str(getattr(turma, "status", "") or "").lower() == "em andamento"
+    status_turma = str(getattr(turma, "status", "") or "").lower()
+
+    def resolve_aluno_status(matricula):
+        if bool(getattr(matricula, "finalizou", False)):
+            return "finalizou"
+        if status_turma == "em andamento":
+            return "em andamento"
+        if bool(getattr(matricula, "pronto", False)):
+            return "pronto"
+        return "aguardando"
+
     alunos_data = [
         {
             "aluno_id": m.aluno_id,
             "nome": m.aluno.nome,
             "email": getattr(m.aluno, "email", ""),
-            "pronto": bool(m.finalizou if em_andamento else m.pronto),
+            "aluno_status": resolve_aluno_status(m),
+            "pronto": resolve_aluno_status(m) in {"pronto", "finalizou"},
             "finalizou": bool(m.finalizou),
         }
         for m in turma.matriculas
@@ -830,7 +841,7 @@ def build_turma_realtime_payload(turma):
     return {
         "id": turma.id,
         "status": turma.status,
-        "prontos": sum(1 for m in turma.matriculas if (m.finalizou if em_andamento else m.pronto)),
+        "prontos": sum(1 for aluno in alunos_data if aluno.get("pronto")),
         "total": len(turma.matriculas),
         "alunos": alunos_data,
         "auto_restart_enabled": bool(getattr(turma, "auto_restart_enabled", False)),

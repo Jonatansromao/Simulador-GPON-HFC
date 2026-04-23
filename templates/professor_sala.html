@@ -89,15 +89,10 @@
                   {% endif %}
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  {% if status == 'em andamento' %}
-                    <span class="badge {% if aluno.pronto %}bg-success{% else %}bg-warning text-dark{% endif %}">
-                      {% if aluno.pronto %}Finalizou{% else %}Em prova{% endif %}
-                    </span>
-                  {% else %}
-                    <span class="badge {% if aluno.pronto %}bg-success{% else %}bg-warning text-dark{% endif %}">
-                      {% if aluno.pronto %}Pronto{% else %}Aguardando{% endif %}
-                    </span>
-                  {% endif %}
+                  {% set status_aluno = aluno.aluno_status or ('finalizou' if aluno.finalizou else ('pronto' if aluno.pronto else 'aguardando')) %}
+                  <span class="badge {% if status_aluno == 'finalizou' %}bg-success{% elif status_aluno == 'em andamento' %}bg-primary{% elif status_aluno == 'pronto' %}bg-info text-dark{% else %}bg-warning text-dark{% endif %}">
+                    {% if status_aluno == 'finalizou' %}Finalizou{% elif status_aluno == 'em andamento' %}Em andamento{% elif status_aluno == 'pronto' %}Pronto{% else %}Aguardando{% endif %}
+                  </span>
                   <button type="button" class="btn btn-outline-danger btn-sm btn-remover-aluno" data-aluno-id="{{ aluno.aluno_id }}" data-aluno-nome="{{ aluno.nome }}">
                     🗑 Remover
                   </button>
@@ -175,9 +170,6 @@
   }
 
   function renderListaAlunos(alunos) {
-      const statusAtual = (document.getElementById('status-sala')?.textContent || '').trim().toLowerCase();
-      const emAndamento = statusAtual === 'em andamento';
-
     const container = document.getElementById('lista-alunos');
     const badge = document.getElementById('badge-total-alunos');
     const total = document.getElementById('total-sala');
@@ -192,22 +184,48 @@
       return;
     }
 
+    const resolveStatusAluno = (aluno) => {
+      if (aluno?.aluno_status) return String(aluno.aluno_status).toLowerCase();
+      if (aluno?.finalizou) return 'finalizou';
+      if (aluno?.pronto) return 'pronto';
+      return 'aguardando';
+    };
+
+    const statusBadgeClass = (statusAluno) => {
+      if (statusAluno === 'finalizou') return 'bg-success';
+      if (statusAluno === 'em andamento') return 'bg-primary';
+      if (statusAluno === 'pronto') return 'bg-info text-dark';
+      return 'bg-warning text-dark';
+    };
+
+    const statusLabel = (statusAluno) => {
+      if (statusAluno === 'finalizou') return 'Finalizou';
+      if (statusAluno === 'em andamento') return 'Em andamento';
+      if (statusAluno === 'pronto') return 'Pronto';
+      return 'Aguardando';
+    };
+
+    const renderAlunoRow = (aluno) => {
+      const alunoStatus = resolveStatusAluno(aluno);
+      return `
+        <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+          <div>
+            <strong>${escapeHtml(aluno.nome)}</strong>
+            ${aluno.email ? `<br><small class="text-muted">${escapeHtml(aluno.email)}</small>` : ''}
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge ${statusBadgeClass(alunoStatus)}">
+              ${statusLabel(alunoStatus)}
+            </span>
+            <button type="button" class="btn btn-outline-danger btn-sm btn-remover-aluno" data-aluno-id="${aluno.aluno_id}" data-aluno-nome="${escapeHtml(aluno.nome)}">🗑 Remover</button>
+          </div>
+        </li>
+      `;
+    };
+
     container.innerHTML = `
       <ul class="list-group list-group-flush">
-        ${alunos.map((aluno) => `
-          <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
-            <div>
-              <strong>${escapeHtml(aluno.nome)}</strong>
-              ${aluno.email ? `<br><small class="text-muted">${escapeHtml(aluno.email)}</small>` : ''}
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <span class="badge ${aluno.pronto ? 'bg-success' : 'bg-warning text-dark'}">
-                ${emAndamento ? (aluno.pronto ? 'Finalizou' : 'Em prova') : (aluno.pronto ? 'Pronto' : 'Aguardando')}
-              </span>
-              <button type="button" class="btn btn-outline-danger btn-sm btn-remover-aluno" data-aluno-id="${aluno.aluno_id}" data-aluno-nome="${escapeHtml(aluno.nome)}">🗑 Remover</button>
-            </div>
-          </li>
-        `).join('')}
+        ${alunos.map((aluno) => renderAlunoRow(aluno)).join('')}
       </ul>
     `;
   }
