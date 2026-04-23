@@ -532,8 +532,15 @@ def turma_result(turma_id):
 @api_bp.route("/api/sala_espera/<int:turma_id>")
 def api_sala_espera(turma_id):
     turma = Turma.query.get_or_404(turma_id)
+    em_andamento = (str(turma.status or "").lower() == "em andamento")
     alunos = [
-        {"aluno_id": m.aluno_id, "nome": m.aluno.nome, "email": m.aluno.email, "pronto": m.pronto}
+        {
+            "aluno_id": m.aluno_id,
+            "nome": m.aluno.nome,
+            "email": m.aluno.email,
+            "pronto": bool(m.finalizou if em_andamento else m.pronto),
+            "finalizou": bool(getattr(m, "finalizou", False)),
+        }
         for m in Matricula.query.filter_by(turma_id=turma.id).all()
     ]
     return jsonify({
