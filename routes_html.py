@@ -1008,12 +1008,21 @@ def professor_register():
         novo_professor = Professor(nome=nome, email=email, invite_code=generate_invite_code())
         novo_professor.set_password(senha)  # usa o método para gerar hash
         novo_professor.is_admin = is_admin_email(email)
-        novo_professor.is_premium = novo_professor.is_admin
-        novo_professor.premium_expires_at = None
+
+        if novo_professor.is_admin:
+            novo_professor.is_premium = True
+            novo_professor.premium_expires_at = None
+        else:
+            novo_professor.is_premium = True
+            novo_professor.premium_expires_at = datetime.utcnow() + timedelta(days=7)
+
         db.session.add(novo_professor)
         db.session.commit()
 
-        flash("Cadastro realizado com sucesso! Faça login e assine premium para liberar todas as funcionalidades.", "success")
+        if novo_professor.is_admin:
+            flash("Cadastro de administrador realizado com sucesso!", "success")
+        else:
+            flash("Cadastro realizado com sucesso! Seu teste grátis de 7 dias já está ativo.", "success")
         return redirect(url_for("html_bp.login_professor"))
 
     return render_template("professor_register.html")
