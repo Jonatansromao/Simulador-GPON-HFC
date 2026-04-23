@@ -2959,6 +2959,47 @@ def delete_respostas_aluno_turma(turma_id, cpf):
 
 
 # -----------------------------
+# Excluir múltiplas tentativas livres (bulk) - sem turma
+@html_bp.route("/bulk_delete_respostas_livres", methods=["POST"])
+@api_login_required_professor
+def bulk_delete_respostas_livres():
+    data = request.get_json(silent=True) or {}
+    tentativas = data.get("tentativas", [])
+    total = 0
+    try:
+        for t in tentativas:
+            cpf = t.get("cpf", "").strip()
+            data_iso = t.get("data_iso", "").strip()
+            aluno = Aluno.query.filter_by(cpf=cpf).first()
+            if not aluno:
+                continue
+            try:
+                data_dt = datetime.strptime(data_iso, "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                try:
+                    data_dt = datetime.strptime(data_iso, "%Y-%m-%dT%H:%M")
+                except ValueError:
+                    continue
+            data_fim = data_dt + timedelta(seconds=1)
+            deleted = Resposta.query.filter(
+                Resposta.aluno_id == aluno.id,
+                Resposta.data_envio >= data_dt,
+                Resposta.data_envio <= data_fim,
+            ).delete(synchronize_session=False)
+            SimuladoLivre.query.filter(
+                SimuladoLivre.aluno_id == aluno.id,
+                SimuladoLivre.data_realizacao >= data_dt,
+                SimuladoLivre.data_realizacao <= data_fim,
+            ).delete(synchronize_session=False)
+            total += deleted
+        db.session.commit()
+        return jsonify({"ok": True, "deleted": total})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# -----------------------------
 # Excluir múltiplas tentativas (bulk) de uma turma
 @html_bp.route("/bulk_delete_tentativas/<int:turma_id>", methods=["POST"])
 @api_login_required_professor
