@@ -154,6 +154,7 @@ class Matricula(db.Model):
     aluno_id = db.Column(db.Integer, db.ForeignKey("alunos.id"), nullable=False)
     turma_id = db.Column(db.Integer, db.ForeignKey("turmas.id", ondelete="CASCADE"), nullable=False)
     pronto = db.Column(db.Boolean, default=False)
+    finalizou = db.Column(db.Boolean, default=False, nullable=False)
 
     aluno = db.relationship("Aluno", back_populates="matriculas", lazy=True)
     turma = db.relationship("Turma", back_populates="matriculas", lazy=True)

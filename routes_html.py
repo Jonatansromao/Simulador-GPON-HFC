@@ -816,19 +816,21 @@ def admin_required(f):
 # Funções utilitárias de atualização em tempo real
 # -----------------------------
 def build_turma_realtime_payload(turma):
+    em_andamento = str(getattr(turma, "status", "") or "").lower() == "em andamento"
     alunos_data = [
         {
             "aluno_id": m.aluno_id,
             "nome": m.aluno.nome,
             "email": getattr(m.aluno, "email", ""),
-            "pronto": bool(m.pronto),
+            "pronto": bool(m.finalizou if em_andamento else m.pronto),
+            "finalizou": bool(m.finalizou),
         }
         for m in turma.matriculas
     ]
     return {
         "id": turma.id,
         "status": turma.status,
-        "prontos": sum(1 for m in turma.matriculas if m.pronto),
+        "prontos": sum(1 for m in turma.matriculas if (m.finalizou if em_andamento else m.pronto)),
         "total": len(turma.matriculas),
         "alunos": alunos_data,
         "auto_restart_enabled": bool(getattr(turma, "auto_restart_enabled", False)),
@@ -855,6 +857,9 @@ def resetar_ciclo_automatico_turma(turma):
     for matricula in turma.matriculas:
         if matricula.pronto:
             matricula.pronto = False
+            alterou = True
+        if bool(getattr(matricula, "finalizou", False)):
+            matricula.finalizou = False
             alterou = True
 
     return alterou
@@ -1744,10 +1749,22 @@ def aluno_pronto(turma_id):
 
     turma = Turma.query.get_or_404(turma_id)
 
+    if str(turma.status or "").lower() != "aguardando":
+        payload = build_turma_realtime_payload(turma)
+        return jsonify(
+            {
+                "success": False,
+                "mensagem": "A turma já foi iniciada. Aguarde o encerramento para marcar pronto novamente.",
+                **payload,
+            }
+        ), 400
+
     if turma.auto_restart_enabled and turma.status == "Encerrado":
         resetar_ciclo_automatico_turma(turma)
 
     matricula.pronto = not bool(matricula.pronto)
+    if not matricula.pronto:
+        matricula.finalizou = False
     mensagem = "Você foi marcado como pronto." if matricula.pronto else "Seu status voltou para aguardando."
 
     if turma.auto_restart_enabled and matricula.pronto:
@@ -1780,7 +1797,7 @@ def aluno_entrar(turma_id):
 
     matricula = Matricula.query.filter_by(aluno_id=aluno_id, turma_id=turma_id).first()
     if not matricula:
-        matricula = Matricula(aluno_id=aluno_id, turma_id=turma_id, pronto=False)
+        matricula = Matricula(aluno_id=aluno_id, turma_id=turma_id, pronto=False, finalizou=False)
         db.session.add(matricula)
 
     turma = Turma.query.get_or_404(turma_id)
@@ -2303,6 +2320,8 @@ def logout_page():
 def iniciar_quiz(turma_id):
     turma = Turma.query.filter_by(id=turma_id, professor_id=session["usuario"]["id"]).first_or_404()
     turma.status = "Em andamento"
+    for matricula in turma.matriculas:
+        matricula.finalizou = False
     db.session.commit()
     return build_professor_turma_action_response(turma, "Quiz iniciado com sucesso!", "success")
 
@@ -2368,6 +2387,7 @@ def encerrar_quiz(turma_id):
 
     for matricula in turma.matriculas:
         matricula.pronto = False
+        matricula.finalizou = False
 
     db.session.commit()
 
@@ -2388,6 +2408,7 @@ def resetar_turma(turma_id):
 
     for matricula in turma.matriculas:
         matricula.pronto = False
+        matricula.finalizou = False
 
     db.session.commit()
 
@@ -2669,8 +2690,9 @@ def submit_answers(turma_id):
 
     db.session.add_all(novas_respostas)
 
-    # 🔹 Marca o aluno como pronto
-    matricula.pronto = True
+    # 🔹 Marca o aluno como finalizado (sem deixá-lo como pronto ao voltar para a sala)
+    matricula.finalizou = True
+    matricula.pronto = False
     db.session.commit()
 
     total = len(resultados)
@@ -2684,7 +2706,7 @@ def submit_answers(turma_id):
     # 🔹 Verifica se todos os alunos finalizaram
     turma = Turma.query.get(turma_id)
     matriculas = Matricula.query.filter_by(turma_id=turma_id).all()
-    todos_finalizaram = all(m.pronto for m in matriculas)
+    todos_finalizaram = bool(matriculas) and all(bool(getattr(m, "finalizou", False)) for m in matriculas)
 
     if todos_finalizaram:
         if turma.auto_restart_enabled:

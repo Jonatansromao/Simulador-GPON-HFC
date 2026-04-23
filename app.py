@@ -235,6 +235,14 @@ def ensure_schema_updates():
             "UPDATE turmas SET exibir_respostas = TRUE WHERE exibir_respostas IS NULL"
         )
 
+    if "matriculas" in tables:
+        matricula_columns = {col["name"] for col in inspector.get_columns("matriculas")}
+        if "finalizou" not in matricula_columns:
+            execute_statement("ALTER TABLE matriculas ADD COLUMN finalizou BOOLEAN DEFAULT FALSE")
+        execute_statement(
+            "UPDATE matriculas SET finalizou = FALSE WHERE finalizou IS NULL"
+        )
+
     if "questao" in tables:
         questao_columns = {col["name"] for col in inspector.get_columns("questao")}
         if "tema" not in questao_columns:

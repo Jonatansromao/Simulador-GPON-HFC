@@ -89,9 +89,15 @@
                   {% endif %}
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                  <span class="badge {% if aluno.pronto %}bg-success{% else %}bg-warning text-dark{% endif %}">
-                    {% if aluno.pronto %}Pronto{% else %}Aguardando{% endif %}
-                  </span>
+                  {% if status == 'em andamento' %}
+                    <span class="badge {% if aluno.pronto %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                      {% if aluno.pronto %}Finalizou{% else %}Em prova{% endif %}
+                    </span>
+                  {% else %}
+                    <span class="badge {% if aluno.pronto %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                      {% if aluno.pronto %}Pronto{% else %}Aguardando{% endif %}
+                    </span>
+                  {% endif %}
                   <button type="button" class="btn btn-outline-danger btn-sm btn-remover-aluno" data-aluno-id="{{ aluno.aluno_id }}" data-aluno-nome="{{ aluno.nome }}">
                     🗑 Remover
                   </button>
@@ -169,6 +175,9 @@
   }
 
   function renderListaAlunos(alunos) {
+      const statusAtual = (document.getElementById('status-sala')?.textContent || '').trim().toLowerCase();
+      const emAndamento = statusAtual === 'em andamento';
+
     const container = document.getElementById('lista-alunos');
     const badge = document.getElementById('badge-total-alunos');
     const total = document.getElementById('total-sala');
@@ -193,7 +202,7 @@
             </div>
             <div class="d-flex align-items-center gap-2">
               <span class="badge ${aluno.pronto ? 'bg-success' : 'bg-warning text-dark'}">
-                ${aluno.pronto ? 'Pronto' : 'Aguardando'}
+                ${emAndamento ? (aluno.pronto ? 'Finalizou' : 'Em prova') : (aluno.pronto ? 'Pronto' : 'Aguardando')}
               </span>
               <button type="button" class="btn btn-outline-danger btn-sm btn-remover-aluno" data-aluno-id="${aluno.aluno_id}" data-aluno-nome="${escapeHtml(aluno.nome)}">🗑 Remover</button>
             </div>
