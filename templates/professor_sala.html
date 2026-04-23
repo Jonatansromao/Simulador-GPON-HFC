@@ -3,7 +3,7 @@
 {% block titulo %}Sala da Turma - Professor{% endblock %}
 
 {% block conteudo %}
-<div class="container mt-4" id="professor-sala-app" data-turma-id="{{ turma.id }}" data-auto-enabled="{{ 'true' if turma.auto_restart_enabled else 'false' }}">
+<div class="container mt-4" id="professor-sala-app" data-turma-id="{{ turma.id }}" data-auto-enabled="{{ 'true' if turma.auto_restart_enabled else 'false' }}" data-answer-visible="{{ 'true' if turma.exibir_respostas else 'false' }}">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
       <h2 class="mb-1">👨‍🏫 Acompanhamento da Sala</h2>
@@ -57,6 +57,20 @@
     </div>
   </div>
 
+  <div class="alert {{ 'alert-success' if turma.exibir_respostas else 'alert-warning' }} d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>
+      <strong>👁 Visibilidade das respostas para alunos:</strong>
+      <span id="answer-visibility-label">{{ 'Ativa' if turma.exibir_respostas else 'Bloqueada' }}</span>
+      <div class="small mt-1" id="answer-visibility-help">
+        {% if turma.exibir_respostas %}
+          Os alunos podem ver gabarito e detalhes por questão ao finalizar o quiz.
+        {% else %}
+          Os alunos verão somente a nota no resultado; gabarito e detalhes ficam ocultos.
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
   <div class="card shadow-sm mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
       <span>📋 Participantes conectados</span>
@@ -95,20 +109,27 @@
   <div class="card shadow-sm mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
       <span>📝 Questões desta turma</span>
-      <span class="badge bg-secondary">{{ questoes_turma|length }} questão(ões)</span>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="badge bg-secondary">{{ questoes_turma|length }} questão(ões)</span>
+        {% if questoes_turma %}
+          <button type="button" class="btn btn-outline-primary btn-sm" id="btn-expandir-questoes">Expandir todas</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-minimizar-questoes">Minimizar todas</button>
+        {% endif %}
+      </div>
     </div>
     <div class="card-body">
       {% if questoes_turma %}
         <div class="list-group list-group-flush">
           {% for questao in questoes_turma %}
-            <div class="list-group-item px-0">
-              <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <details class="list-group-item px-0 questao-item" {% if loop.first %}open{% endif %}>
+              <summary class="d-flex flex-wrap align-items-center gap-2" style="cursor:pointer; list-style:none;">
                 <span class="badge bg-light text-dark border">#{{ questao.id }}</span>
                 <span class="badge bg-info text-dark">{{ questao.tema }}</span>
                 <span class="badge bg-dark">{{ questao.banco or '—' }}</span>
-              </div>
-              <div>{{ questao.texto }}</div>
-            </div>
+                <span class="fw-semibold">Questão {{ loop.index }}</span>
+              </summary>
+              <div class="mt-2">{{ questao.texto }}</div>
+            </details>
           {% endfor %}
         </div>
       {% else %}
@@ -137,6 +158,7 @@
   const salaRoot = document.getElementById('professor-sala-app');
   const turmaId = Number((salaRoot && salaRoot.dataset.turmaId) || 0);
   let autoModeEnabled = salaRoot?.dataset.autoEnabled === 'true';
+  let answerVisibilityEnabled = salaRoot?.dataset.answerVisible !== 'false';
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -221,8 +243,34 @@
       ? '<button type="button" class="btn btn-outline-dark btn-acao-sala" data-action="toggle-auto">⚡ Desativar modo automático</button>'
       : '<button type="button" class="btn btn-outline-info btn-acao-sala" data-action="toggle-auto">⚡ Ativar modo automático</button>';
 
+    const answerButton = answerVisibilityEnabled
+      ? '<button type="button" class="btn btn-outline-warning btn-acao-sala" data-action="toggle-answer-visibility">🙈 Ocultar respostas dos alunos</button>'
+      : '<button type="button" class="btn btn-outline-success btn-acao-sala" data-action="toggle-answer-visibility">👁 Permitir respostas aos alunos</button>';
+
     container.dataset.status = status;
-    container.innerHTML = `${actionButton}${autoButton}<a href="/turma_result/${turmaId}" class="btn btn-primary">📊 Ver resultados</a>`;
+    container.innerHTML = `${actionButton}${autoButton}${answerButton}<a href="/turma_result/${turmaId}" class="btn btn-primary">📊 Ver resultados</a>`;
+  }
+
+  function renderVisibilidadeRespostas(enabled) {
+    const label = document.getElementById('answer-visibility-label');
+    const help = document.getElementById('answer-visibility-help');
+    const alertBox = label?.closest('.alert');
+
+    if (label) {
+      label.textContent = enabled ? 'Ativa' : 'Bloqueada';
+    }
+    if (help) {
+      help.textContent = enabled
+        ? 'Os alunos podem ver gabarito e detalhes por questão ao finalizar o quiz.'
+        : 'Os alunos verão somente a nota no resultado; gabarito e detalhes ficam ocultos.';
+    }
+    if (alertBox) {
+      alertBox.classList.toggle('alert-success', enabled);
+      alertBox.classList.toggle('alert-warning', !enabled);
+    }
+    if (salaRoot) {
+      salaRoot.dataset.answerVisible = enabled ? 'true' : 'false';
+    }
   }
 
   function applySalaUpdate(data) {
@@ -231,11 +279,15 @@
     if (typeof data.auto_restart_enabled !== 'undefined') {
       autoModeEnabled = Boolean(data.auto_restart_enabled);
     }
+    if (typeof data.exibir_respostas !== 'undefined') {
+      answerVisibilityEnabled = Boolean(data.exibir_respostas);
+    }
     const statusEl = document.getElementById('status-sala');
     if (statusEl) {
       statusEl.textContent = status || 'aguardando';
     }
     renderModoAutomatico(autoModeEnabled);
+    renderVisibilidadeRespostas(answerVisibilityEnabled);
     renderAcoesRapidas(status || 'aguardando');
     renderListaAlunos(Array.isArray(data.alunos) ? data.alunos : []);
   }
@@ -246,6 +298,7 @@
       encerrar: `/encerrar_quiz/${turmaId}`,
       resetar: `/resetar_turma/${turmaId}`,
       'toggle-auto': `/professor/turma/${turmaId}/toggle_auto_restart`,
+      'toggle-answer-visibility': `/turma/${turmaId}/toggle_exibir_respostas`,
     };
 
     if (!routes[action]) return;
@@ -312,6 +365,22 @@
   socket.on('alunos_prontos_atualizado', applySalaUpdate);
 
   document.addEventListener('click', (event) => {
+    const expandAllBtn = event.target.closest('#btn-expandir-questoes');
+    if (expandAllBtn) {
+      document.querySelectorAll('.questao-item').forEach((item) => {
+        item.open = true;
+      });
+      return;
+    }
+
+    const collapseAllBtn = event.target.closest('#btn-minimizar-questoes');
+    if (collapseAllBtn) {
+      document.querySelectorAll('.questao-item').forEach((item) => {
+        item.open = false;
+      });
+      return;
+    }
+
     const removeButton = event.target.closest('.btn-remover-aluno');
     if (removeButton) {
       removerAlunoSala(removeButton.dataset.alunoId, removeButton.dataset.alunoNome || 'o aluno');
