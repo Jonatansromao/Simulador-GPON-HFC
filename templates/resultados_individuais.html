@@ -120,6 +120,8 @@
 </div>
 
 <script>
+    const CSRF_TOKEN = "{{ csrf_token() }}";
+
     // ---- Filtro por nome ----
     const filtroNome = document.getElementById('filtroNome');
     const btnExcluirFiltrados = document.getElementById('btnExcluirFiltrados');
@@ -187,7 +189,8 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': CSRF_TOKEN
             },
             credentials: 'same-origin',
             body: JSON.stringify({ tentativas })
