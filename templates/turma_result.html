@@ -33,16 +33,40 @@
         <div class="col-md-6"><canvas id="distChart"></canvas></div>
     </div>
 
+    <!-- Barra de filtro e ações em massa -->
+    <div class="card mb-3 border-primary">
+        <div class="card-body py-2">
+            <div class="row align-items-end g-2">
+                <div class="col-md-5">
+                    <label class="form-label fw-bold mb-1">🔍 Filtrar por nome</label>
+                    <input type="text" id="filtroNome" class="form-control" placeholder="Digite o nome do aluno...">
+                </div>
+                <div class="col-md-auto">
+                    <button id="btnExcluirFiltrados" class="btn btn-danger" style="display:none;" onclick="excluirFiltrados()">
+                        🗑 Excluir todos do filtro
+                    </button>
+                </div>
+                <div class="col-md-auto ms-auto">
+                    <button id="btnExcluirSelecionados" class="btn btn-danger" style="display:none;" onclick="excluirSelecionados()">
+                        🗑 Excluir selecionados (<span id="countSelecionados">0</span>)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <table class="table table-striped table-bordered">
         <thead class="table-dark">
             <tr>
+                <th style="width:36px;"><input type="checkbox" id="selectAll" title="Selecionar todos visíveis"></th>
                 <th>Nome</th><th>CPF</th><th>E-mail</th><th>Pontuação</th>
                 <th>Acertos</th><th>Total Questões</th><th>Data</th><th>Simulado</th><th>Ações</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="tabelaAlunos">
             {% for aluno in alunos %}
-            <tr>
+            <tr class="linha-aluno" data-nome="{{ aluno.nome|lower }}" data-cpf="{{ aluno.cpf }}" data-iso="{{ aluno.data_iso }}">
+                <td><input type="checkbox" class="row-check" data-cpf="{{ aluno.cpf }}" data-iso="{{ aluno.data_iso }}"></td>
                 <td>
                     <button class="btn btn-link p-0 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detalhes{{ loop.index }}">
                         {{ aluno.nome }}
@@ -95,6 +119,94 @@
 </div>
 
 <script>
+    const TURMA_ID = {{ turma_id }};
+
+    // ---- Filtro por nome ----
+    const filtroNome = document.getElementById('filtroNome');
+    const btnExcluirFiltrados = document.getElementById('btnExcluirFiltrados');
+
+    filtroNome.addEventListener('input', function () {
+        const texto = this.value.trim().toLowerCase();
+        const linhas = document.querySelectorAll('.linha-aluno');
+        linhas.forEach(tr => {
+            const nome = tr.dataset.nome || '';
+            const visivel = nome.includes(texto);
+            tr.style.display = visivel ? '' : 'none';
+            const next = tr.nextElementSibling;
+            if (next && next.id && next.id.startsWith('detalhes')) {
+                next.style.display = visivel ? '' : 'none';
+            }
+        });
+        btnExcluirFiltrados.style.display = texto.length > 0 ? '' : 'none';
+        atualizarContador();
+    });
+
+    // ---- Select All (visíveis) ----
+    document.getElementById('selectAll').addEventListener('change', function () {
+        document.querySelectorAll('.linha-aluno').forEach(tr => {
+            if (tr.style.display !== 'none') {
+                tr.querySelector('.row-check').checked = this.checked;
+            }
+        });
+        atualizarContador();
+    });
+
+    document.addEventListener('change', function (e) {
+        if (e.target.classList.contains('row-check')) {
+            atualizarContador();
+        }
+    });
+
+    function atualizarContador() {
+        const n = document.querySelectorAll('.row-check:checked').length;
+        document.getElementById('countSelecionados').textContent = n;
+        document.getElementById('btnExcluirSelecionados').style.display = n > 0 ? '' : 'none';
+    }
+
+    // ---- Excluir selecionados ----
+    function excluirSelecionados() {
+        const tentativas = [];
+        document.querySelectorAll('.row-check:checked').forEach(cb => {
+            tentativas.push({ cpf: cb.dataset.cpf, data_iso: cb.dataset.iso });
+        });
+        if (tentativas.length === 0) return;
+        if (!confirm(`Excluir ${tentativas.length} tentativa(s) selecionada(s)?`)) return;
+        enviarBulkDelete(tentativas);
+    }
+
+    // ---- Excluir todos do filtro ----
+    function excluirFiltrados() {
+        const tentativas = [];
+        document.querySelectorAll('.linha-aluno').forEach(tr => {
+            if (tr.style.display !== 'none') {
+                tentativas.push({ cpf: tr.dataset.cpf, data_iso: tr.dataset.iso });
+            }
+        });
+        if (tentativas.length === 0) return;
+        const nomeDigitado = filtroNome.value.trim();
+        if (!confirm(`Excluir todas as ${tentativas.length} tentativa(s) para "${nomeDigitado}"?`)) return;
+        enviarBulkDelete(tentativas);
+    }
+
+    function enviarBulkDelete(tentativas) {
+        fetch(`/bulk_delete_tentativas/${TURMA_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tentativas })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.ok) {
+                alert(`${data.deleted} resposta(s) excluída(s) com sucesso.`);
+                location.reload();
+            } else {
+                alert('Erro ao excluir: ' + (data.error || 'desconhecido'));
+            }
+        })
+        .catch(() => alert('Erro de comunicação com o servidor.'));
+    }
+
+    // ---- Data local ----
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.local-datetime').forEach(el => {
             const iso = el.dataset.iso;
