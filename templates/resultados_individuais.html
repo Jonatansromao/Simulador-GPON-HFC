@@ -42,7 +42,8 @@
             <div class="row align-items-end g-2">
                 <div class="col-md-5">
                     <label class="form-label fw-bold mb-1">🔍 Filtrar por nome</label>
-                    <input type="text" id="filtroNome" class="form-control" placeholder="Digite o nome do aluno...">
+                    <input type="text" id="filtroNome" class="form-control" placeholder="Digite o nome do aluno..." list="nomesCadastrados" autocomplete="off">
+                    <datalist id="nomesCadastrados"></datalist>
                 </div>
                 <div class="col-md-auto">
                     <button id="btnExcluirFiltrados" class="btn btn-danger" style="display:none;" onclick="excluirFiltrados()">
@@ -227,6 +228,16 @@
 
     const scores = {{ alunos|map(attribute='score')|list|tojson }};
     const nomes = {{ alunos|map(attribute='nome')|list|tojson }};
+    const nomesAutocomplete = [...new Set(nomes.map(n => (n || '').trim()).filter(Boolean))];
+
+    const datalistNomes = document.getElementById('nomesCadastrados');
+    if (datalistNomes) {
+        nomesAutocomplete.forEach(nome => {
+            const opt = document.createElement('option');
+            opt.value = nome;
+            datalistNomes.appendChild(opt);
+        });
+    }
 
     if (scores.length > 0) {
         new Chart(document.getElementById('scoreChart'), {
