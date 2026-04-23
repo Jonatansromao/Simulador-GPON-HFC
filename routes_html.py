@@ -100,6 +100,18 @@ def normalize_cpf(value: str) -> str:
     return "".join(ch for ch in str(value) if ch.isdigit())
 
 
+def parse_attempt_datetime(value: str):
+    raw = (value or "").strip().replace("Z", "")
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+
 def build_question_option_map(questao) -> dict:
     return {
         "A": (getattr(questao, "opcao_a", None) or "").strip(),
@@ -2453,7 +2465,9 @@ def resultados_individuais():
     melhor = max(scores) if scores else 0
     pior = min(scores) if scores else 0
 
-    return render_template("resultados_individuais.html", alunos=dados_alunos, media=media, melhor=melhor, pior=pior)
+    return make_no_cache_response(
+        render_template("resultados_individuais.html", alunos=dados_alunos, media=media, melhor=melhor, pior=pior)
+    )
 
 
 # -----------------------------
@@ -2522,7 +2536,9 @@ def turma_result(turma_id):
     melhor = max(notas) if notas else 0
     pior = min(notas) if notas else 0
 
-    return render_template("turma_result.html", turma_id=turma.id, alunos=alunos_data, media=media, melhor=melhor, pior=pior)
+    return make_no_cache_response(
+        render_template("turma_result.html", turma_id=turma.id, alunos=alunos_data, media=media, melhor=melhor, pior=pior)
+    )
 
 
 # -----------------------------
@@ -2965,21 +2981,34 @@ def delete_respostas_aluno_turma(turma_id, cpf):
 def bulk_delete_respostas_livres():
     data = request.get_json(silent=True) or {}
     tentativas = data.get("tentativas", [])
+    if not isinstance(tentativas, list):
+        return jsonify({"ok": False, "error": "Payload inválido: campo 'tentativas' deve ser uma lista."}), 400
+
+    alunos_por_cpf = {}
+    for a in Aluno.query.all():
+        cpf_norm = normalize_cpf(getattr(a, "cpf", ""))
+        if cpf_norm:
+            alunos_por_cpf[cpf_norm] = a
+
     total = 0
     try:
         for t in tentativas:
-            cpf = t.get("cpf", "").strip()
-            data_iso = t.get("data_iso", "").strip()
-            aluno = Aluno.query.filter_by(cpf=cpf).first()
+            if not isinstance(t, dict):
+                continue
+
+            cpf = normalize_cpf(t.get("cpf", ""))
+            data_iso = (t.get("data_iso", "") or "").strip()
+            if not cpf or not data_iso:
+                continue
+
+            aluno = alunos_por_cpf.get(cpf)
             if not aluno:
                 continue
-            try:
-                data_dt = datetime.strptime(data_iso, "%Y-%m-%dT%H:%M:%S")
-            except ValueError:
-                try:
-                    data_dt = datetime.strptime(data_iso, "%Y-%m-%dT%H:%M")
-                except ValueError:
-                    continue
+
+            data_dt = parse_attempt_datetime(data_iso)
+            if not data_dt:
+                continue
+
             data_fim = data_dt + timedelta(seconds=1)
             deleted = Resposta.query.filter(
                 Resposta.aluno_id == aluno.id,
@@ -2996,7 +3025,9 @@ def bulk_delete_respostas_livres():
         return jsonify({"ok": True, "deleted": total})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        current_app.logger.exception("Erro no bulk_delete_respostas_livres")
+        msg = str(e).strip() or e.__class__.__name__
+        return jsonify({"ok": False, "error": msg}), 500
 
 
 # -----------------------------
@@ -3006,21 +3037,34 @@ def bulk_delete_respostas_livres():
 def bulk_delete_tentativas(turma_id):
     data = request.get_json(silent=True) or {}
     tentativas = data.get("tentativas", [])
+    if not isinstance(tentativas, list):
+        return jsonify({"ok": False, "error": "Payload inválido: campo 'tentativas' deve ser uma lista."}), 400
+
+    alunos_por_cpf = {}
+    for a in Aluno.query.all():
+        cpf_norm = normalize_cpf(getattr(a, "cpf", ""))
+        if cpf_norm:
+            alunos_por_cpf[cpf_norm] = a
+
     total = 0
     try:
         for t in tentativas:
-            cpf = t.get("cpf", "").strip()
-            data_iso = t.get("data_iso", "").strip()
-            aluno = Aluno.query.filter_by(cpf=cpf).first()
+            if not isinstance(t, dict):
+                continue
+
+            cpf = normalize_cpf(t.get("cpf", ""))
+            data_iso = (t.get("data_iso", "") or "").strip()
+            if not cpf or not data_iso:
+                continue
+
+            aluno = alunos_por_cpf.get(cpf)
             if not aluno:
                 continue
-            try:
-                data_dt = datetime.strptime(data_iso, "%Y-%m-%dT%H:%M:%S")
-            except ValueError:
-                try:
-                    data_dt = datetime.strptime(data_iso, "%Y-%m-%dT%H:%M")
-                except ValueError:
-                    continue
+
+            data_dt = parse_attempt_datetime(data_iso)
+            if not data_dt:
+                continue
+
             data_fim = data_dt + timedelta(seconds=1)
             deleted = Resposta.query.filter(
                 Resposta.aluno_id == aluno.id,
@@ -3033,7 +3077,9 @@ def bulk_delete_tentativas(turma_id):
         return jsonify({"ok": True, "deleted": total})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        current_app.logger.exception("Erro no bulk_delete_tentativas")
+        msg = str(e).strip() or e.__class__.__name__
+        return jsonify({"ok": False, "error": msg}), 500
 
 
 # -----------------------------
