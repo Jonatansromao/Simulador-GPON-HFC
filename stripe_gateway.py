@@ -1,16 +1,17 @@
 import stripe
 import os
 from datetime import datetime, timedelta
+import config
 
 # Configurar chave Stripe
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
+stripe.api_key = config.STRIPE_SECRET_KEY
+STRIPE_PUBLISHABLE_KEY = config.STRIPE_PUBLISHABLE_KEY
 
 class StripeGateway:
     """Integração com Stripe para processamento de pagamentos"""
     @staticmethod
     def is_configured():
-        return bool(stripe.api_key and STRIPE_PUBLISHABLE_KEY)
+        return config.STRIPE_CONFIGURED
     
     @staticmethod
     def criar_sessao_checkout(professor_id, professor_email, valor=250.00):
@@ -19,6 +20,7 @@ class StripeGateway:
         Retorna URL para redirecionar o cliente
         """
         try:
+            base_url = config.get_base_url()
             session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
                 line_items=[
@@ -36,8 +38,8 @@ class StripeGateway:
                     }
                 ],
                 mode="payment",
-                success_url="http://localhost:5000/professor/premium/sucesso?session_id={CHECKOUT_SESSION_ID}",
-                cancel_url="http://localhost:5000/professor/premium",
+                success_url=f"{base_url}/professor/premium/sucesso?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{base_url}/professor/premium",
                 customer_email=professor_email,
                 metadata={
                     "professor_id": professor_id,
@@ -58,6 +60,8 @@ class StripeGateway:
             if not StripeGateway.is_configured():
                 return None, "Stripe não está configurado. Defina STRIPE_SECRET_KEY e STRIPE_PUBLISHABLE_KEY."
 
+            base_url = config.get_base_url()
+            
             # Preparar metadados
             metadata = {
                 "professor_id": professor_id,

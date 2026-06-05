@@ -1,55 +1,20 @@
-import os
 import uuid
 import requests
+import config
 
 BASE_URL = "https://api.mercadopago.com"
 
 
+def is_configured():
+    return config.MERCADOPAGO_CONFIGURED
+
+
 def get_access_token():
-    return os.getenv("MERCADOPAGO_ACCESS_TOKEN")
-
-
-def normalize_public_base_url(url):
-    if not url:
-        return None
-
-    normalized = str(url).strip().rstrip("/")
-    if not normalized:
-        return None
-
-    if "://" not in normalized:
-        normalized = f"https://{normalized}"
-
-    lowered = normalized.lower()
-    if (
-        "localhost" in lowered
-        or "127.0.0.1" in lowered
-        or ".internal" in lowered
-    ):
-        return None
-
-    return normalized
-
-
-def get_base_url(request_base_url=None):
-    candidates = [
-        request_base_url,
-        os.getenv("APP_BASE_URL"),
-        os.getenv("RAILWAY_PUBLIC_DOMAIN"),
-        os.getenv("RENDER_EXTERNAL_URL"),
-        os.getenv("NGROK_URL"),
-    ]
-
-    for candidate in candidates:
-        normalized = normalize_public_base_url(candidate)
-        if normalized:
-            return normalized
-
-    return "http://localhost:5000"
+    return config.MERCADOPAGO_ACCESS_TOKEN
 
 
 def is_sandbox_mode():
-    return os.getenv("MERCADOPAGO_SANDBOX", "false").lower() in ("1", "true", "yes")
+    return config.MERCADOPAGO_SANDBOX
 
 
 def build_headers(access_token, use_idempotency=False):
@@ -67,7 +32,7 @@ class MercadoPagoGateway:
 
     @staticmethod
     def is_configured():
-        return bool(get_access_token())
+        return is_configured()
 
     @staticmethod
     def criar_preferencia(professor_id, professor_email, valor=250.00, payment_id=None, base_url=None):
@@ -75,11 +40,11 @@ class MercadoPagoGateway:
         if not access_token:
             return None, "Mercado Pago não está configurado. Defina MERCADOPAGO_ACCESS_TOKEN."
 
-        base_url = get_base_url(base_url)
-        if not base_url.startswith("https://"):
+        base_url = base_url or config.get_base_url()
+        if config.IS_PRODUCTION and not base_url.startswith("https://"):
             return None, (
-                "Defina APP_BASE_URL com a URL pública HTTPS do Railway "
-                "(ex.: https://simulador-gpon-hfc.up.railway.app)."
+                "Defina APP_BASE_URL com a URL pública HTTPS "
+                "(ex.: https://simulador-gpon-hfc.me)."
             )
 
         preference = {

@@ -3,12 +3,18 @@
 ## PIX - Implementado ✅
 
 O sistema já está gerando:
-- **QR Code PIX** estático com o CPF: 049.229.249-30
-- **Dados de recebedor**: Jonatan Silva
+- **QR Code PIX** estático com o CPF do recebedor (defina em `.env` via `RECEIVER_CPF`)
+- **Dados de recebedor**: Configurável em variáveis de ambiente
 - **Valor**: R$ 250,00 por mês
 - **Confirmação**: Botão "Confirmar Pagamento PIX"
 
 Ao clicar em "Confirmar Pagamento PIX", a assinatura é ativada por 30 dias.
+
+**Configuração no .env:**
+```
+RECEIVER_CPF=seu_cpf_aqui
+RECEIVER_NAME=seu_nome_completo
+```
 
 ---
 
@@ -160,14 +166,17 @@ pip install pagseguro-api
 
 Para receber direto em sua conta bancária sem intermediários:
 
-**Configuração de Conta Bancária:**
-1. **Banco**: Qual banco você utiliza? (Itaú, Bradesco, BB, Caixa, etc)
-2. **Tipo de Conta**: Corrente ou Poupança?
-3. **Agência**: 
-4. **Conta**: 
-5. **CPF/CNPJ**: 049.229.249-30
+**Configuração de Conta Bancária (.env):**
+```
+RECEIVER_CPF=seu_cpf_aqui
+RECEIVER_CNPJ=seu_cnpj_aqui_se_aplicavel
+RECEIVER_BANK=nome_do_banco
+RECEIVER_ACCOUNT_TYPE=corrente_ou_poupanca
+RECEIVER_AGENCY=numero_agencia
+RECEIVER_ACCOUNT=numero_conta
+```
 
-Com esses dados, você pode:
+Com esses dados configurados em variáveis de ambiente, você pode:
 - Solicitar ferramentas de cobrança do seu banco
 - Gerar boletos com dados da sua conta
 - Receber via transferência automática

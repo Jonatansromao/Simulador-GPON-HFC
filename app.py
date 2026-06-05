@@ -2,7 +2,6 @@ import os
 import csv
 import time
 import secrets
-import hashlib
 from datetime import timedelta
 from flask import Flask, jsonify, request, session, flash, redirect, url_for
 from flask_migrate import Migrate
@@ -14,69 +13,34 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # Carregar variáveis de ambiente do arquivo .env antes dos imports que dependem delas
 load_dotenv()
 
+# Importar configurações centralizadas
+import config
 from extensions import db, socketio
 from routes_html import html_bp
 from routes_api import api_bp
+from utils import get_logger
 
-IS_PRODUCTION = os.getenv("RENDER", "").lower() == "true" or os.getenv("APP_ENV", "").lower() == "production"
-
-
-def resolve_secret_key() -> str:
-    explicit_secret = os.getenv("SECRET_KEY")
-    if explicit_secret:
-        return explicit_secret
-
-    derived_seed = "|".join(
-        value
-        for value in [
-            os.getenv("DATABASE_URL"),
-            os.getenv("SMTP_PASS"),
-            os.getenv("MERCADOPAGO_ACCESS_TOKEN"),
-            os.getenv("STRIPE_SECRET_KEY"),
-        ]
-        if value
-    )
-    if derived_seed:
-        return hashlib.sha256(derived_seed.encode("utf-8")).hexdigest()
-
-    if IS_PRODUCTION:
-        generated_secret = secrets.token_urlsafe(48)
-        print("WARNING: SECRET_KEY não definido em produção. Uma chave temporária foi gerada para este processo.")
-        return generated_secret
-
-    return "dev-secret-key-change-me"
-
+logger = get_logger(__name__)
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-app.config["SECRET_KEY"] = resolve_secret_key()
-app.secret_key = app.config["SECRET_KEY"]
-app.config["APP_VERSION"] = os.getenv("APP_VERSION", "1.5")
-app.config["TUTORIAL_PROFESSOR_URL"] = os.getenv("TUTORIAL_PROFESSOR_URL", "")
-app.config["TUTORIAL_ALUNO_URL"] = os.getenv("TUTORIAL_ALUNO_URL", "")
 
-base_dir = os.path.abspath(os.path.dirname(__file__))
-instance_dir = os.path.join(base_dir, "instance")
-os.makedirs(instance_dir, exist_ok=True)
-
-database_url = os.getenv("DATABASE_URL")
-if database_url:
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-else:
-    database_path = os.path.join(instance_dir, "simulador.db")
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{database_path}"
-
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_CONTENT_LENGTH", 10 * 1024 * 1024))
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SECURE"] = IS_PRODUCTION
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["REMEMBER_COOKIE_HTTPONLY"] = True
-app.config["REMEMBER_COOKIE_SECURE"] = IS_PRODUCTION
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=int(os.getenv("SESSION_LIFETIME_HOURS", "12")))
-app.config["SESSION_REFRESH_EACH_REQUEST"] = False
+# ========== APLICAR CONFIGURAÇÕES ==========
+app.config["SECRET_KEY"] = config.SECRET_KEY
+app.secret_key = config.SECRET_KEY
+app.config["APP_VERSION"] = config.APP_VERSION
+app.config["TUTORIAL_PROFESSOR_URL"] = config.TUTORIAL_PROFESSOR_URL
+app.config["TUTORIAL_ALUNO_URL"] = config.TUTORIAL_ALUNO_URL
+app.config["SQLALCHEMY_DATABASE_URI"] = config.SQLALCHEMY_DATABASE_URI
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = config.SQLALCHEMY_TRACK_MODIFICATIONS
+app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
+app.config["SESSION_COOKIE_HTTPONLY"] = config.SESSION_COOKIE_HTTPONLY
+app.config["SESSION_COOKIE_SECURE"] = config.SESSION_COOKIE_SECURE
+app.config["SESSION_COOKIE_SAMESITE"] = config.SESSION_COOKIE_SAMESITE
+app.config["REMEMBER_COOKIE_HTTPONLY"] = config.REMEMBER_COOKIE_HTTPONLY
+app.config["REMEMBER_COOKIE_SECURE"] = config.REMEMBER_COOKIE_SECURE
+app.config["PERMANENT_SESSION_LIFETIME"] = config.PERMANENT_SESSION_LIFETIME
+app.config["SESSION_REFRESH_EACH_REQUEST"] = config.SESSION_REFRESH_EACH_REQUEST
 
 db.init_app(app)
 migrate = Migrate(app, db)
@@ -85,31 +49,17 @@ socketio.init_app(app)
 rate_limit_cache = SimpleCache(default_timeout=900)
 SAFE_HTTP_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 CSRF_EXEMPT_PATH_PREFIXES = ("/webhook/", "/api/webhook/", "/socket.io")
-RATE_LIMIT_RULES = [
-    ("/login/professor", 10, 300),
-    ("/login/aluno", 10, 300),
-    ("/api/login/professor", 15, 300),
-    ("/api/login/aluno", 15, 300),
-    ("/professor/register", 6, 600),
-    ("/aluno/register", 8, 600),
-    ("/forgot_password", 5, 900),
-    ("/professor/pagar_", 4, 300),
-    ("/professor/assinar_premium", 4, 300),
-]
+RATE_LIMIT_RULES = config.RATE_LIMIT_RULES
 
 
 def prefers_json_response() -> bool:
-    return (
-        request.is_json
-        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
-        or request.path.startswith("/api/")
-        or (request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html)
-    )
+    from utils import prefers_json_response as pref_json
+    return pref_json()
 
 
 def client_identifier() -> str:
-    forwarded_for = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
-    return forwarded_for or request.headers.get("X-Real-IP") or request.remote_addr or "unknown"
+    from utils import get_client_identifier
+    return get_client_identifier()
 
 
 def generate_csrf_token() -> str:
@@ -184,7 +134,7 @@ def apply_security_headers(response):
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    if IS_PRODUCTION:
+    if config.IS_PRODUCTION:
         response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return response
 
